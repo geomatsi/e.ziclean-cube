@@ -17,4 +17,10 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|-|
 |__TX (68)__| __RX (69)__ | __TDO (89)__ | __TCK/SWCLK (76)__ | __NRST (14)__|
 
+### Pin functions
+| Pin | Configuration | Function |
+|-|-|-|
+| PE0 | output (50MHz) / GPIO PP | Beeper |
+
+
 ## Firmware notes
