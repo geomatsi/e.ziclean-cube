@@ -40,7 +40,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PB0 | analog input | | |
 | PB1 | analog input | | |
-| PB2 | general purpose output (50MHz) push-pull | | |
+| PB2 | general purpose output (50MHz) push-pull | | KXCJ9 I2C SDA |
 | PB3 | floating input | | |
 | PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
 | PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | |
@@ -59,7 +59,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PC0 .. PC5 | analog input | | |
 | PC6 | floating input | | |
-| PC7 .. PC8 | general purpose output (50MHz) push-pull | | |
+| PC7 | general purpose output (50MHz) push-pull | | |
+| PC8 | general purpose output (50MHz) push-pull | | TM1667 I2C SCL |
 | PC9 .. PC15 | floating input | | |
 
 #### GPIOD
@@ -76,7 +77,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PD9 | general purpose output (50MHz) push-pull | | |
 | PD10 .. PD12 | floating input | | |
 | PD13 | general purpose output (50MHz) open-drain | | |
-| PD14 | general purpose output (50MHz) push-pull | | |
+| PD14 | general purpose output (50MHz) push-pull | | TM1667 I2C SDA |
 | PD15 | floating input | | |
 
 #### GPIOE
@@ -85,7 +86,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PE0 | general purpose output (50MHz) push-pull | | beeper |
 | PE1 .. PE6 | floating input | | |
-| PE7 | general purpose output (50MHz) push-pull | | |
+| PE7 | general purpose output (50MHz) push-pull | | KXCJ9 I2C SCL |
 | PE8 .. PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
 | PE13 | floating input | | |
