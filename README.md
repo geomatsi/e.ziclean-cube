@@ -25,7 +25,9 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PA0 .. PA7 | analog input | | |
+| PA0 | analog input | | |
+| PA1 | analog input | | |
+| PA2 .. PA7 | analog input | | |
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
 | PA12 | floating input | | |
@@ -36,10 +38,17 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PB0 .. PB1 | analog input | | |
+| PB0 | analog input | | |
+| PB1 | analog input | | |
 | PB2 | general purpose output (50MHz) push-pull | | |
 | PB3 | floating input | | |
-| PB4 .. PB10 | alternate function output (50MHz) push-pull | | |
+| PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
+| PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | |
+| PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | |
+| PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | |
+| PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | |
+| PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | |
+| PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | |
 | PB11 | general purpose output (50MHz) open-drain | | |
 | PB12 .. PB14 | general purpose output (50MHz) push-pull | | |
 | PB15 | floating input | | |
@@ -57,7 +66,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PD0 .. PD1 | floating input | | |
+| PD0 | floating input | source input for EXTI0 | |
+| PD1 | floating input | source input for EXIT1 | |
 | PD2 | general purpose output (50MHz) open-drain | | |
 | PD3 | floating input | | |
 | PD4 | general purpose output (50MHz) push-pull | | |
