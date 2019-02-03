@@ -69,7 +69,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PC4 | analog input | ADC_IN14 | |
 | PC5 | analog input | ADC_IN15 | |
 | PC6 | floating input | | |
-| PC7 | general purpose output (50MHz) push-pull | | |
+| PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
 | PC8 | general purpose output (50MHz) push-pull | | TM1667 CLK |
 | PC9 .. PC15 | floating input | | |
 
@@ -84,7 +84,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PD4 | general purpose output (50MHz) push-pull | | |
 | PD5 | general purpose output (50MHz) open-drain | | |
 | PD6 .. PD8 | floating input | | |
-| PD9 | general purpose output (50MHz) push-pull | | |
+| PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
 | PD10 .. PD12 | floating input | | |
 | PD13 | general purpose output (50MHz) open-drain | | |
 | PD14 | general purpose output (50MHz) push-pull | | TM1667 DIO |
