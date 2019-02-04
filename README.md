@@ -48,7 +48,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PB2 | general purpose output (50MHz) push-pull | | KXCJ9 SDA |
 | PB3 | floating input | | |
 | PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
-| PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | |
+| PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | all brushes |
 | PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | 74HC125D 2A |
 | PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | 74HC125D 1A |
 | PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | 74HC125D 4A |
