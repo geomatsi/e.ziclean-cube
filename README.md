@@ -17,8 +17,6 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|-|
 |__TX (68)__| __RX (69)__ | __TDO (89)__ | __TCK/SWCLK (76)__ | __NRST (14)__|
 
-## Firmware notes
-
 ### Runtime pin configuration
 
 #### GPIOA
@@ -49,12 +47,12 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PB3 | floating input | | |
 | PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
 | PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | all brushes |
-| PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | 74HC125D 2A |
-| PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | 74HC125D 1A |
-| PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | 74HC125D 4A |
-| PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | 74HC125D 3A |
+| PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | left wheel reverse speed (TIM4/PWM via 74HC125D 2A) |
+| PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | left wheel forward speed (TIM4/PWM via 74HC125D 1A) |
+| PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | right wheel forward speed (TIM4/PWM via 74HC125D 4A) |
+| PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | right wheel reverse speed (TIM4/PWM via 74HC125D 3A) |
 | PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | |
-| PB11 | general purpose output (50MHz) open-drain | | |
+| PB11 | general purpose output (50MHz) open-drain | | [right wheel reverse enable/disable][sr-latch] |
 | PB12 .. PB14 | general purpose output (50MHz) push-pull | | |
 | PB15 | floating input | | |
 
@@ -79,10 +77,10 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PD0 | floating input | source input for EXTI0 | |
 | PD1 | floating input | source input for EXIT1 | |
-| PD2 | general purpose output (50MHz) open-drain | | |
+| PD2 | general purpose output (50MHz) open-drain | | [left wheel forward enable/disable][sr-latch] |
 | PD3 | floating input | | |
 | PD4 | general purpose output (50MHz) push-pull | | |
-| PD5 | general purpose output (50MHz) open-drain | | |
+| PD5 | general purpose output (50MHz) open-drain | | [left wheel reverse enable/disable][sr-latch] |
 | PD6 .. PD8 | floating input | | |
 | PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
 | PD10 .. PD12 | floating input | | |
@@ -102,5 +100,28 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PE10 .. PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
 | PE13 | floating input | | |
-| PE14 | general purpose output (50MHz) open-drain | | |
+| PE14 | general purpose output (50MHz) open-drain | | [right wheel forward enable/disable][sr-latch] |
 | PE15 | general purpose output (50MHz) push-pull | | |
+
+[sr-latch]: #motorcontrol-1
+
+### [Motor control](#motorcontrol-1)
+It looks like SR-latch circuitry is used for direction control to protect H-bridges for main motors.
+
+Right motor direction is controlled by PE14 and PB11:
+
+| PE14 | PB11 | Direction |
+|-|-|-|
+|  0   |   0  |  stop |
+|  1   |   0  |  reverse |
+|  0   |   1  |  forward |
+|  1   |   1  |  stop |
+
+Left motor direction is controlled by PD2 and PD5:
+
+| PD2  | PD5  | Direction |
+|-|-|-|
+|  0   |   0  |  stop |
+|  1   |   0  |  reverse |
+|  0   |   1  |  forward |
+|  1   |   1  |  stop |
