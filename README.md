@@ -69,7 +69,9 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PC6 | floating input | | |
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
 | PC8 | general purpose output (50MHz) push-pull | | TM1667 CLK |
-| PC9 .. PC15 | floating input | | |
+| PC9 .. PC11 | floating input | | |
+| PC12 | floating input | | IR diode in left motor optical incremental encoder |
+| PC13 .. PC15 | floating input | | |
 
 #### GPIOD
 
@@ -84,7 +86,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PD6 .. PD8 | floating input | | |
 | PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
 | PD10 .. PD12 | floating input | | |
-| PD13 | general purpose output (50MHz) open-drain | | |
+| PD13 | general purpose output (50MHz) open-drain | | IR LEDs in optical incremental encoders for both main motors, active low |
 | PD14 | general purpose output (50MHz) push-pull | | TM1667 DIO |
 | PD15 | floating input | | |
 
@@ -95,7 +97,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PE0 | general purpose output (50MHz) push-pull | | Beeper |
 | PE1 .. PE6 | floating input | | |
 | PE7 | general purpose output (50MHz) push-pull | | KXCJ9 SCL |
-| PE8 | floating input | | |
+| PE8 | floating input | | IR diode in right motor optical incremental encoder |
 | PE9 | floating input | | KXCJ9 INT |
 | PE10 .. PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
