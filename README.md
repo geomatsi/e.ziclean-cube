@@ -30,7 +30,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PA4 | analog input | ADC_IN4 | |
 | PA5 | analog input | ADC_IN5 | |
 | PA6 | analog input | ADC_IN6 | |
-| PA7 | analog input | ADC_IN7 | |
+| PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor (?) |
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
 | PA12 | floating input | | TM1667 STB |
@@ -42,7 +42,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
 | PB0 | analog input | ADC_IN8 | |
-| PB1 | analog input | ADC_IN9 | |
+| PB1 | analog input | ADC_IN9 | IR diode of the right floor sensor (?) |
 | PB2 | general purpose output (50MHz) push-pull | | KXCJ9 SDA |
 | PB3 | floating input | | |
 | PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
@@ -61,7 +61,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
 | PC0 | analog input | ADC_IN10 | |
-| PC1 | analog input | ADC_IN11 | |
+| PC1 | analog input | ADC_IN11 | IR diode of the left floor sensor (?) |
 | PC2 | analog input | ADC_IN12 | |
 | PC3 | analog input | ADC_IN13 | |
 | PC4 | analog input | ADC_IN14 | |
