@@ -53,8 +53,10 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | right wheel reverse speed (TIM4/PWM via 74HC125D 3A) |
 | PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | |
 | PB11 | general purpose output (50MHz) open-drain | | [right wheel reverse enable/disable][sr-latch] |
-| PB12 .. PB14 | general purpose output (50MHz) push-pull | | |
-| PB15 | floating input | | |
+| PB12 | general purpose output (50MHz) push-pull | | SPI2_NSS for U12 (non-populated) |
+| PB13 | general purpose output (50MHz) push-pull | | SPI2_SCK for U12 (non-populated) |
+| PB14 | general purpose output (50MHz) push-pull | | SPI2_MISO for U12 (non-populated) |
+| PB15 | floating input | | SPI2_MOSI for U12 (non-populated) |
 
 #### GPIOC
 
