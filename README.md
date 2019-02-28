@@ -27,9 +27,9 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PA1 | analog input | ADC_IN1 | |
 | PA2 | analog input | ADC_IN2 | |
 | PA3 | analog input | ADC_IN3 | |
-| PA4 | analog input | ADC_IN4 | |
+| PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor (?) |
 | PA5 | analog input | ADC_IN5 | |
-| PA6 | analog input | ADC_IN6 | |
+| PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor (?) |
 | PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor (?) |
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
@@ -67,11 +67,12 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PC2 | analog input | ADC_IN12 | |
 | PC3 | analog input | ADC_IN13 | |
 | PC4 | analog input | ADC_IN14 | |
-| PC5 | analog input | ADC_IN15 | |
+| PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor (?) |
 | PC6 | floating input | | |
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
 | PC8 | general purpose output (50MHz) push-pull | | TM1667 CLK |
-| PC9 .. PC11 | floating input | | |
+| PC9 .. PC10 | floating input | | |
+| PC11 | floating input | | IR diode of the left-left front sensor (?) |
 | PC12 | floating input | | IR diode in left motor optical incremental encoder |
 | PC13 .. PC15 | floating input | | |
 
@@ -90,7 +91,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PD10 .. PD12 | floating input | | |
 | PD13 | general purpose output (50MHz) open-drain | | IR LEDs in optical incremental encoders for both main motors, active low |
 | PD14 | general purpose output (50MHz) push-pull | | TM1667 DIO |
-| PD15 | floating input | | |
+| PD15 | floating input | | IR diode of the top sensor (?) |
 
 #### GPIOE
 
@@ -101,7 +102,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PE7 | general purpose output (50MHz) push-pull | | KXCJ9 SCL |
 | PE8 | floating input | | IR diode in right motor optical incremental encoder |
 | PE9 | floating input | | KXCJ9 INT |
-| PE10 .. PE11 | floating input | | |
+| PE10 | floating input | | IR diode of the right-right front sensor (?) |
+| PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
 | PE13 | floating input | | |
 | PE14 | general purpose output (50MHz) open-drain | | [right wheel forward enable/disable][sr-latch] |
