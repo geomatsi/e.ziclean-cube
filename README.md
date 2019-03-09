@@ -27,10 +27,10 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PA1 | analog input | ADC_IN1 | |
 | PA2 | analog input | ADC_IN2 | |
 | PA3 | analog input | ADC_IN3 | |
-| PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor (?) |
+| PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor |
 | PA5 | analog input | ADC_IN5 | |
-| PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor (?) |
-| PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor (?) |
+| PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor |
+| PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor |
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
 | PA12 | floating input | | TM1667 STB |
@@ -41,8 +41,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PB0 | analog input | ADC_IN8 | |
-| PB1 | analog input | ADC_IN9 | IR diode of the right floor sensor (?) |
+| PB0 | analog input | ADC_IN8 | IR diode of the right-right front sensor |
+| PB1 | analog input | ADC_IN9 | IR diode of the right floor sensor |
 | PB2 | general purpose output (50MHz) push-pull | | KXCJ9 SDA |
 | PB3 | floating input | | |
 | PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
@@ -62,17 +62,17 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PC0 | analog input | ADC_IN10 | |
-| PC1 | analog input | ADC_IN11 | IR diode of the left floor sensor (?) |
+| PC0 | analog input | ADC_IN10 | IR diode of the left-left front sensor |
+| PC1 | analog input | ADC_IN11 | IR diode of the left floor sensor |
 | PC2 | analog input | ADC_IN12 | |
 | PC3 | analog input | ADC_IN13 | |
 | PC4 | analog input | ADC_IN14 | |
-| PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor (?) |
+| PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor |
 | PC6 | floating input | | |
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
 | PC8 | general purpose output (50MHz) push-pull | | TM1667 CLK |
 | PC9 .. PC10 | floating input | | |
-| PC11 | floating input | | IR diode of the left-left front sensor (?) |
+| PC11 | floating input | | |
 | PC12 | floating input | | IR diode in left motor optical incremental encoder |
 | PC13 .. PC15 | floating input | | |
 
@@ -102,7 +102,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PE7 | general purpose output (50MHz) push-pull | | KXCJ9 SCL |
 | PE8 | floating input | | IR diode in right motor optical incremental encoder |
 | PE9 | floating input | | KXCJ9 INT |
-| PE10 | floating input | | IR diode of the right-right front sensor (?) |
+| PE10 | floating input | | |
 | PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
 | PE13 | floating input | | |
