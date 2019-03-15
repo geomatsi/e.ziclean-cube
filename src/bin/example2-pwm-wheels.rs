@@ -18,7 +18,6 @@ use stm32ral::gpio;
 use stm32ral::modify_reg;
 use stm32ral::rcc;
 use stm32ral::tim4;
-use stm32ral::write_reg;
 
 #[entry]
 fn main() -> ! {
@@ -114,43 +113,30 @@ fn main() -> ! {
     delay(100);
     modify_reg!(rcc, rcc, APB1RSTR, TIM4RST: 0);
 
-    // disable counter
-    modify_reg!(tim4, tim4, CR1, CEN: 0);
-
-    // clock division
-    modify_reg!(tim4, tim4, CR1, CKD: 0);
-
-    // mode
-    modify_reg!(tim4, tim4, SMCR, SMS: 0);
-    modify_reg!(tim4, tim4, CR1, CMS: 0);
-    modify_reg!(tim4, tim4, CR1, DIR: 0);
-    modify_reg!(tim4, tim4, CR1, OPM: 0);
-
-    modify_reg!(tim4, tim4, ARR, ARR: 0xffff);
-    modify_reg!(tim4, tim4, PSC, PSC: 0);
-
     // OC1 output
     modify_reg!(tim4, tim4, CCMR1, OC1M: 0b110, OC1PE: 1);
     modify_reg!(tim4, tim4, CCER, CC1P: 0, CC1E: 1);
-    modify_reg!(tim4, tim4, CCR1, CCR1: 0);
 
     // OC2 output
     modify_reg!(tim4, tim4, CCMR1, OC2M: 0b110, OC2PE: 1);
     modify_reg!(tim4, tim4, CCER, CC2P: 0, CC2E: 1);
-    modify_reg!(tim4, tim4, CCR2, CCR2: 0);
 
     // OC3 output
     modify_reg!(tim4, tim4, CCMR2, OC3M: 0b110, OC3PE: 1);
     modify_reg!(tim4, tim4, CCER, CC3P: 0, CC3E: 1);
-    modify_reg!(tim4, tim4, CCR3, CCR3: 0);
 
     // OC4 output
     modify_reg!(tim4, tim4, CCMR2, OC4M: 0b110, OC4PE: 1);
     modify_reg!(tim4, tim4, CCER, CC4P: 0, CC4E: 1);
-    modify_reg!(tim4, tim4, CCR4, CCR4: 0);
 
-    // ARR reload enable
-    modify_reg!(tim4, tim4, CR1, ARPE: 1);
+    // mode
+    modify_reg!(tim4, tim4, PSC, PSC: 0);
+    modify_reg!(tim4, tim4, ARR, ARR: 0xffff);
+
+    modify_reg!(tim4, tim4, CR1, CMS: 0);
+    modify_reg!(tim4, tim4, CR1, DIR: 0);
+    modify_reg!(tim4, tim4, CR1, OPM: 0);
+    modify_reg!(tim4, tim4, CR1, CEN: 1);
 
     hprintln!("TIM4 configuration completed...").unwrap();
 
@@ -164,10 +150,6 @@ fn main() -> ! {
     modify_reg!(gpio, gpioe, ODR, ODR14: 0);
     modify_reg!(gpio, gpiob, ODR, ODR11: 1);
 
-    // start counter !!!
-    write_reg!(tim4, tim4, EGR, UG: 1);
-    modify_reg!(tim4, tim4, CR1, CEN: 1);
-
     hprintln!("TIM4 started...").unwrap();
 
     let duty: [u32; 12] = [
@@ -175,6 +157,7 @@ fn main() -> ! {
     ];
     loop {
         for s in 0..duty.len() {
+            hprintln!("duty {}", duty[s]).unwrap();
             modify_reg!(tim4, tim4, CCR1, CCR1: duty[s]);
             modify_reg!(tim4, tim4, CCR3, CCR3: duty[s]);
             delay(20000);
