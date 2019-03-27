@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Sergey Matyukevich <geomatsi@gmail.com>"]
 edition = "2018"
 
+[features]
+default = ["hal"]
+hal = ["stm32f1xx-hal"]
+ral = ["stm32ral"]
+
 [dependencies]
 cortex-m = "0.5.8"
 cortex-m-rt = "0.6.7"
@@ -14,11 +19,41 @@ nb = "0.1.1"
 cortex-m-rtfm = "0.4.0"
 
 #[dependencies.stm32f1]
+#optional = true
 #version = "0.6.0"
 #features = ["stm32f101", "rt"]
 
+#[dependencies.stm32f1xx-hal]
+#optional = true
+#version = "0.2.1"
+#features = ["stm32f101", "rt"]
+
+[dependencies.stm32f1xx-hal]
+optional = true
+git = "https://github.com/stm32-rs/stm32f1xx-hal.git"
+features = ["stm32f101", "rt"]
+
 [dependencies.stm32ral]
+optional = true
 version = "0.1.1"
 features = ["stm32f101", "rt"]
 
+[[bin]]
+name = "example1-ral-adc-sensors"
+#path = "src/bin/example1-ral-adc-sensors.rs"
+required-features = [ "ral" ]
 
+[[bin]]
+name = "example2-ral-pwm-wheels"
+#path = "src/bin/example2-ral-pwm-wheels.rs"
+required-features = [ "ral" ]
+
+[[bin]]
+name = "example3-hal-pwm-wheels"
+#path = "src/bin/example3-hal-pwm-wheels.rs"
+required-features = [ "hal"] 
+
+[[bin]]
+name = "example4-hal-adc-sensors"
+#path = "src/bin/example4-hal-adc-sensors.rs"
+required-features = [ "hal"] 
