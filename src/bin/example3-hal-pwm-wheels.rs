@@ -12,7 +12,7 @@ extern crate panic_semihosting;
 extern crate cortex_m_semihosting;
 use cortex_m_semihosting::hprintln;
 
-use stm32f1xx_hal::{prelude::*, pwm::*, stm32};
+use stm32f1xx_hal::{prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
