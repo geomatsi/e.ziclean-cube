@@ -22,7 +22,7 @@ panic-semihosting = "0.5.1"
 cortex-m-semihosting = "0.3.2"
 panic-itm = "0.4.0"
 nb = "0.1.1"
-cortex-m-rtfm = "0.4.0"
+cortex-m-rtfm = "0.4.2"
 
 [dependencies.stm32f1xx-hal]
 optional = true
@@ -55,6 +55,11 @@ required-features = [ "hal"]
 name = "test-hal-adc-sensors"
 path = "src/bin/test-hal-adc-sensors.rs"
 required-features = [ "hal"] 
+
+[[bin]]
+name = "test-hal-rtfm-robot"
+path = "src/bin/test-hal-rtfm-robot.rs"
+required-features = [ "hal" ]
 
 # examples
 
