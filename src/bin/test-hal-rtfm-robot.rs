@@ -8,7 +8,7 @@ extern crate cortex_m_rt as rt;
 extern crate panic_semihosting;
 
 extern crate cortex_m_semihosting;
-use cortex_m_semihosting::hprintln;
+//use cortex_m_semihosting::hprintln;
 
 extern crate rtfm;
 use rtfm::app;
@@ -48,6 +48,14 @@ const APP: () = {
     static mut rwf: gpio::gpiob::PB11<gpio::Output<gpio::OpenDrain>> = ();
     static mut rwr: gpio::gpioe::PE14<gpio::Output<gpio::OpenDrain>> = ();
 
+    // pwm wheels control
+    static mut pwm: (
+        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C1>,
+        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C2>,
+        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C3>,
+        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C4>,
+    ) = ();
+
     #[init]
     fn init() {
         let mut rcc = device.RCC.constrain();
@@ -61,9 +69,9 @@ const APP: () = {
             .adcclk(4.mhz())
             .freeze(&mut flash.acr);
 
-        hprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0).unwrap();
-        hprintln!("PCLK2: {} Hz ...", clocks.pclk2().0).unwrap();
-        hprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0).unwrap();
+        //hprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0).unwrap();
+        //hprintln!("PCLK2: {} Hz ...", clocks.pclk2().0).unwrap();
+        //hprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0).unwrap();
 
         let mut gpioa = device.GPIOA.split(&mut rcc.apb2);
         let mut gpiob = device.GPIOB.split(&mut rcc.apb2);
@@ -175,7 +183,7 @@ const APP: () = {
         let max_duty = pwm.0.get_max_duty();
         let duty = max_duty / 2 as u16;
 
-        hprintln!("max_duty[{}] duty[{}]", max_duty, duty).unwrap();
+        //hprintln!("max_duty[{}] duty[{}]", max_duty, duty).unwrap();
         pwm.0.set_duty(duty);
         pwm.1.set_duty(duty);
         pwm.2.set_duty(duty);
@@ -200,6 +208,8 @@ const APP: () = {
         lwr = left_rev;
         rwf = right_fwd;
         rwr = right_rev;
+
+        pwm = pwm;
     }
 
     #[idle()]
@@ -209,10 +219,15 @@ const APP: () = {
         }
     }
 
-    #[interrupt(resources = [tmr2, adc1, fll, fl, fc, fr, frr, bl, bc, br, lwf, lwr, rwf, rwr])]
+    #[interrupt(resources = [tmr2, adc1, fll, fl, fc, fr, frr, bl, bc, br, lwf, lwr, rwf, rwr, pwm])]
     fn TIM2() {
+        let max_duty: u16 = resources.pwm.0.get_max_duty();
+        let full_speed: u16 = 2 * max_duty / 3 as u16;
+        let half_speed: u16 = 3 * max_duty / 4 as u16;
+
         let vmax: u16 = resources.adc1.max_sample();
         let mut r_obstacle = false;
+        let mut c_obstacle = false;
         let mut l_obstacle = false;
 
         let data: u16 = resources.adc1.read(resources.fll).unwrap();
@@ -227,7 +242,7 @@ const APP: () = {
 
         let data: u16 = resources.adc1.read(resources.fc).unwrap();
         if is_obstacle(data, vmax) {
-            l_obstacle = true;
+            c_obstacle = true;
         }
 
         let data: u16 = resources.adc1.read(resources.fr).unwrap();
@@ -240,32 +255,52 @@ const APP: () = {
             r_obstacle = true;
         }
 
-        hprintln!("sensors: ({},{})", l_obstacle, r_obstacle).unwrap();
+        //hprintln!("sensors: ({},{},{})", l_obstacle, c_obstacle, r_obstacle).unwrap();
+        match (l_obstacle, c_obstacle, r_obstacle) {
+            (_, true, _) | (true, false, true) => {
+                // slow rotation on spot
+                resources.rwf.set_high();
+                resources.rwr.set_low();
+                resources.lwf.set_low();
+                resources.lwr.set_high();
 
-        match (l_obstacle, r_obstacle) {
-            (true, true) => {
-                // both obstacles, rotate counter-clockwise
+                resources.pwm.0.set_duty(full_speed);
+                resources.pwm.1.set_duty(full_speed);
+                resources.pwm.2.set_duty(half_speed);
+                resources.pwm.3.set_duty(half_speed);
+            }
+            (false, false, true) => {
+                // right obstacle, move and rotate counter-clockwise
                 resources.rwf.set_high();
                 resources.rwr.set_low();
                 resources.lwf.set_low();
                 resources.lwr.set_high();
+
+                resources.pwm.0.set_duty(half_speed);
+                resources.pwm.1.set_duty(half_speed);
+                resources.pwm.2.set_duty(full_speed);
+                resources.pwm.3.set_duty(full_speed);
             }
-            (false, true) => {
-                // right obstacle, rotate counter-clockwise
-                resources.rwf.set_high();
-                resources.rwr.set_low();
-                resources.lwf.set_low();
-                resources.lwr.set_high();
-            }
-            (true, false) => {
-                // left obstacle, rotate clockwise
+            (true, false, false) => {
+                // left obstacle, move rotate clockwise
                 resources.rwf.set_low();
                 resources.rwr.set_high();
                 resources.lwf.set_high();
                 resources.lwr.set_low();
+
+                resources.pwm.0.set_duty(half_speed);
+                resources.pwm.1.set_duty(half_speed);
+                resources.pwm.2.set_duty(half_speed);
+                resources.pwm.3.set_duty(half_speed);
             }
-            (false, false) => {
+            (false, false, false) => {
                 // no obstacles, move forward
+
+                resources.pwm.0.set_duty(full_speed);
+                resources.pwm.1.set_duty(full_speed);
+                resources.pwm.2.set_duty(full_speed);
+                resources.pwm.3.set_duty(full_speed);
+
                 resources.rwf.set_high();
                 resources.rwr.set_low();
                 resources.lwf.set_high();
