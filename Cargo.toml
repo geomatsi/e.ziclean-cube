@@ -57,8 +57,8 @@ path = "src/bin/test-hal-adc-sensors.rs"
 required-features = [ "hal"] 
 
 [[bin]]
-name = "test-hal-rtfm-robot"
-path = "src/bin/test-hal-rtfm-robot.rs"
+name = "test-hal-rtfm-robot-v1"
+path = "src/bin/test-hal-rtfm-robot-v1.rs"
 required-features = [ "hal" ]
 
 # examples
