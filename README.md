@@ -15,7 +15,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 ### Connector pinout
 | VDD (75) | TMS/SWD (72) | GND | TDI (77) | NTRST (90)|
 |-|-|-|-|-|
-|__TX (68)__| __RX (69)__ | __TDO (89)__ | __TCK/SWCLK (76)__ | __NRST (14)__|
+|__TX (68)__| __RX (69)__ | __TDO/TRACESWO (89)__ | __TCK/SWCLK (76)__ | __NRST (14)__|
 
 ### Runtime pin configuration
 

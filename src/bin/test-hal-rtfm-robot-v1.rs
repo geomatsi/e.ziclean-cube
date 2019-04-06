@@ -10,11 +10,10 @@
 #![no_std]
 
 extern crate cortex_m as cm;
-extern crate cortex_m_rt as rt;
-extern crate panic_semihosting;
+use cm::iprintln;
 
-extern crate cortex_m_semihosting;
-use cortex_m_semihosting::hprintln;
+extern crate cortex_m_rt as rt;
+extern crate panic_itm;
 
 extern crate rtfm;
 use rtfm::app;
@@ -69,6 +68,7 @@ const APP: () = {
     // basic mcu resources
     static mut tmr2: timer::Timer<stm32::TIM2> = ();
     static mut adc1: adc::Adc<stm32::ADC1> = ();
+    static mut itm: hal::stm32::ITM = ();
 
     // front IR sensors
     static mut front_left_90: gpio::gpioc::PC0<gpio::Analog> = ();
@@ -101,6 +101,7 @@ const APP: () = {
     #[init]
     fn init() {
         let mut rcc = device.RCC.constrain();
+        let dbg = &mut core.ITM.stim[0];
 
         // configure clocks
         let mut flash = device.FLASH.constrain();
@@ -111,9 +112,9 @@ const APP: () = {
             .adcclk(4.mhz())
             .freeze(&mut flash.acr);
 
-        hprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0).unwrap();
-        hprintln!("PCLK2: {} Hz ...", clocks.pclk2().0).unwrap();
-        hprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0).unwrap();
+        iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
+        iprintln!(dbg, "PCLK2: {} Hz ...", clocks.pclk2().0);
+        iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
 
         let mut gpioa = device.GPIOA.split(&mut rcc.apb2);
         let mut gpiob = device.GPIOB.split(&mut rcc.apb2);
@@ -225,7 +226,7 @@ const APP: () = {
         let max_duty = pwm.0.get_max_duty();
         let duty = max_duty / 2 as u16;
 
-        hprintln!("max_duty[{}] duty[{}]", max_duty, duty).unwrap();
+        iprintln!(dbg, "max_duty[{}] duty[{}]", max_duty, duty);
         pwm.0.set_duty(duty);
         pwm.1.set_duty(duty);
         pwm.2.set_duty(duty);
@@ -236,6 +237,7 @@ const APP: () = {
         tmr2 = t2;
         adc1 = a1;
         pwm = pwm;
+        itm = core.ITM;
 
         front_left_90 = ch10;
         front_left_45 = ch4;
@@ -262,7 +264,7 @@ const APP: () = {
 
     #[interrupt(resources = [
                 // hardware units
-                tmr2, adc1, pwm,
+                tmr2, adc1, pwm, itm,
                 // front IR sensors
                 front_left_90,
                 front_left_45,
@@ -281,6 +283,7 @@ const APP: () = {
                 right_rev
     ])]
     fn TIM2() {
+        let dbg = &mut resources.itm.stim[0];
         let max_range: u16 = resources.adc1.max_sample();
         let max_duty: u16 = resources.pwm.0.get_max_duty();
         let fast: u16 = 2 * max_duty / 3 as u16;
@@ -299,6 +302,16 @@ const APP: () = {
             sc: resources.adc1.read(resources.bottom_center).unwrap(),
             sr: resources.adc1.read(resources.bottom_right).unwrap(),
         };
+
+        iprintln!(
+            dbg,
+            "front: ({},{},{},{},{})",
+            front.sll,
+            front.slc,
+            front.scc,
+            front.src,
+            front.srr
+        );
 
         let wheels = next_move(front, bottom, max_range);
 
@@ -374,14 +387,6 @@ fn next_move(front: FrontSensors, _bottom: BottomSensors, range: u16) -> WheelCo
     if is_obstacle(front.srr, range) {
         right_obstacle = true;
     }
-
-    hprintln!(
-        "sensors: ({},{},{})",
-        left_obstacle,
-        center_obstacle,
-        right_obstacle
-    )
-    .unwrap();
 
     match (left_obstacle, center_obstacle, right_obstacle) {
         (_, true, _) | (true, false, true) => {

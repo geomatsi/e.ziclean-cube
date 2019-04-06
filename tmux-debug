@@ -1,0 +1,21 @@
+#!/bin/bash
+
+tmux new-session -s jetlink -n "JetLink" -d
+tmux split-window -h -t jetlink:0
+tmux split-window -v -t jetlink:0.1
+
+# start openocd server
+tmux send-keys -t jetlink:0.2 'sudo openocd' C-m
+sleep 0.5
+
+# connect telnet session to openocd server
+tmux send-keys -t jetlink:0.1 'telnet 127.0.0.1 4444' C-m
+sleep 0.5
+
+# start itmdump
+tmux send-keys -t jetlink:0.0 'mkfifo /tmp/itm.fifo' C-m
+tmux send-keys -t jetlink:0.0 'sudo itmdump -f /tmp/itm.fifo -F' C-m
+
+# select openocd server window
+tmux select-window -t jetlink:0.2
+tmux attach -t jetlink
