@@ -34,7 +34,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
 | PA12 | floating input | | TM1667 STB |
-| PA13 .. PA14 | input with pull-up/pull-down | | |
+| PA13 | input with pull-up/pull-down | | J31 (SWDIO) |
+| PA14 | input with pull-up/pull-down | | J31 (SWCLK) |
 | PA15 | general purpose output (50MHz) push-pull | | |
 
 #### GPIOB
