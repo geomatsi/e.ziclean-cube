@@ -13,6 +13,23 @@ extern crate panic_itm;
 
 use stm32f1xx_hal::{prelude::*, stm32};
 
+use stm32f1xx_hal::stm32::TIM3;
+use stm32f1xx_hal::gpio::gpiob::{PB4, PB5};
+use stm32f1xx_hal::gpio::{Alternate, PushPull};
+use stm32f1xx_hal::pwm::{Pins, Pwm, C1, C2};
+
+struct Brushes(PB5<Alternate<PushPull>>);
+
+impl Pins<TIM3>  for Brushes
+{
+    const REMAP: u8 = 0b10;
+    const C1: bool = false;
+    const C2: bool = true;
+    const C3: bool = false;
+    const C4: bool = false;
+    type Channels = Pwm<TIM3, C2>;
+}
+
 #[entry]
 fn main() -> ! {
     let mut core = cm::Peripherals::take().unwrap();
@@ -31,18 +48,17 @@ fn main() -> ! {
 
     // TIM3: CH1 (not used), CH2 (all 3 brushes)
 
-    let c1 = gpiob.pb4.into_alternate_push_pull(&mut gpiob.crl);
-    let c2 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
+    let pin = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
     let mut pwm = p
         .TIM3
-        .pwm((c1, c2), &mut afio.mapr, 10.khz(), clocks, &mut rcc.apb1);
+        .pwm(Brushes(pin), &mut afio.mapr, 10.khz(), clocks, &mut rcc.apb1);
 
-    let max = pwm.1.get_max_duty();
+    let max = pwm.get_max_duty();
 
     iprintln!(dbg, "pwm max duty: {}...", max);
 
-    pwm.1.enable();
+    pwm.enable();
 
     let duty: [u16; 7] = [
         0,
@@ -59,7 +75,7 @@ fn main() -> ! {
     loop {
         for &s in duty.iter() {
             iprintln!(dbg, "duty: {}", s);
-            pwm.1.set_duty(s);
+            pwm.set_duty(s);
             delay(20000);
         }
     }
