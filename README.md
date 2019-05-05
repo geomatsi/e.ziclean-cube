@@ -23,12 +23,12 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PA0 | analog input | ADC_IN0 | |
-| PA1 | analog input | ADC_IN1 | |
-| PA2 | analog input | ADC_IN2 | |
-| PA3 | analog input | ADC_IN3 | |
+| PA0 | analog input | ADC_IN0 | NC ??? |
+| PA1 | analog input | ADC_IN1 | Connected to op-amp U7: seems to be a part of [charge control](#charger-control) circuitry |
+| PA2 | analog input | ADC_IN2 | Connected to op-amp U7: seems to be a part of [charge control](#charger-control) circuitry |
+| PA3 | analog input | ADC_IN3 | NC ??? |
 | PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor |
-| PA5 | analog input | ADC_IN5 | |
+| PA5 | analog input | ADC_IN5 | Connected to op-amp U5 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of left wheel motor|
 | PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor |
 | PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor |
 | PA8 .. PA10 | floating input | | |
@@ -53,7 +53,7 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | right wheel forward speed (TIM4/PWM via 74HC125D 4A) |
 | PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | right wheel reverse speed (TIM4/PWM via 74HC125D 3A) |
 | PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | |
-| PB11 | general purpose output (50MHz) open-drain | | [right wheel reverse enable/disable][sr-latch] |
+| PB11 | general purpose output (50MHz) open-drain | | right wheel reverse [control](#wheel-motors-control) |
 | PB12 | general purpose output (50MHz) push-pull | | SPI2_NSS for U12 (non-populated) |
 | PB13 | general purpose output (50MHz) push-pull | | SPI2_SCK for U12 (non-populated) |
 | PB14 | general purpose output (50MHz) push-pull | | SPI2_MISO for U12 (non-populated) |
@@ -65,9 +65,9 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PC0 | analog input | ADC_IN10 | IR diode of the left-left front sensor |
 | PC1 | analog input | ADC_IN11 | IR diode of the left floor sensor |
-| PC2 | analog input | ADC_IN12 | |
-| PC3 | analog input | ADC_IN13 | |
-| PC4 | analog input | ADC_IN14 | |
+| PC2 | analog input | ADC_IN12 | [Current control](#current-control-for-brush-motors) for brush motors|
+| PC3 | analog input | ADC_IN13 | [Current control](#current-control-for-air-pump-motor) for air pump motor|
+| PC4 | analog input | ADC_IN14 | Connected to op-amp U6 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of right wheel motor|
 | PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor |
 | PC6 | floating input | | |
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
@@ -83,10 +83,10 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PD0 | floating input | source input for EXTI0 | |
 | PD1 | floating input | source input for EXIT1 | |
-| PD2 | general purpose output (50MHz) open-drain | | [left wheel forward enable/disable][sr-latch] |
+| PD2 | general purpose output (50MHz) open-drain | | left wheel forward [control](#wheel-motors-control) |
 | PD3 | floating input | | |
 | PD4 | general purpose output (50MHz) push-pull | | |
-| PD5 | general purpose output (50MHz) open-drain | | [left wheel reverse enable/disable][sr-latch] |
+| PD5 | general purpose output (50MHz) open-drain | | left wheel reverse [control](#wheel-motors-control) |
 | PD6 .. PD8 | floating input | | |
 | PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
 | PD10 .. PD12 | floating input | | |
@@ -107,13 +107,11 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PE11 | floating input | | |
 | PE12 | general purpose output (50MHz) open-drain | | |
 | PE13 | floating input | | |
-| PE14 | general purpose output (50MHz) open-drain | | [right wheel forward enable/disable][sr-latch] |
+| PE14 | general purpose output (50MHz) open-drain | | right wheel forward [control](#wheel-motors-control) |
 | PE15 | general purpose output (50MHz) push-pull | | |
 
-[sr-latch]: #motorcontrol-1
-
-### [Motor control](#motorcontrol-1)
-It looks like SR-latch circuitry is used for direction control to protect H-bridges for main motors.
+### [Wheel motors control](#wheel-motors-control)
+From PCB investigation, it looks like SR-latch circuitry is used for direction control to protect H-bridges for main motors.
 
 Right motor direction is controlled by PE14 and PB11:
 
@@ -132,3 +130,17 @@ Left motor direction is controlled by PD2 and PD5:
 |  1   |   0  |  reverse |
 |  0   |   1  |  forward |
 |  1   |   1  |  stop |
+
+### [Current control for brush motors](#current-control-for-brush-motors)
+From PCB investigation, schematics looks as follows:
+![alt text](pics/mcu-pc3.jpg)
+
+### [Current control for air pump motor](#current-control-for-air-pump-motor)
+From PCB investigation, schematics looks as follows:
+![alt text](pics/mcu-pc2.jpg)
+
+### [Current control for wheel motors](#current-control-for-wheel-motors)
+Schematics: TODO
+
+### [Charger control](#charger-control)
+Schemativs: TODO
