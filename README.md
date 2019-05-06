@@ -24,8 +24,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
 | PA0 | analog input | ADC_IN0 | NC ??? |
-| PA1 | analog input | ADC_IN1 | Connected to op-amp U7: seems to be a part of [charge control](#charger-control) circuitry |
-| PA2 | analog input | ADC_IN2 | Connected to op-amp U7: seems to be a part of [charge control](#charger-control) circuitry |
+| PA1 | analog input | ADC_IN1 | Connected to op-amp U7.3 - [battery control](#battery-voltage-control) circuitry |
+| PA2 | analog input | ADC_IN2 | Connected to op-amps U7.1/U7.2 - [charge control](#charger-control) circuitry |
 | PA3 | analog input | ADC_IN3 | NC ??? |
 | PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor |
 | PA5 | analog input | ADC_IN5 | Connected to op-amp U5 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of left wheel motor|
@@ -142,5 +142,8 @@ From PCB investigation, schematics looks as follows:
 ### [Current control for wheel motors](#current-control-for-wheel-motors)
 Schematics: TODO
 
+### [Battery voltage control](#battery-voltage-control)
+Schematics: TODO
+
 ### [Charger control](#charger-control)
-Schemativs: TODO
+Schematics: TODO
