@@ -143,7 +143,8 @@ From PCB investigation, schematics looks as follows:
 Schematics: TODO
 
 ### [Battery voltage control](#battery-voltage-control)
-Schematics: TODO
+From PCB investigation, schematics looks as follows:
+![alt text](pics/mcu-pa1.jpg)
 
 ### [Charger control](#charger-control)
 Schematics: TODO
