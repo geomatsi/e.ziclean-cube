@@ -24,8 +24,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
 | PA0 | analog input | ADC_IN0 | NC ??? |
-| PA1 | analog input | ADC_IN1 | Connected to op-amp U7.3 - [battery control](#battery-voltage-control) circuitry |
-| PA2 | analog input | ADC_IN2 | Connected to op-amps U7.1/U7.2 - [charge control](#charger-control) circuitry |
+| PA1 | analog input | ADC_IN1 | battery [voltage](#battery-voltage-control) control |
+| PA2 | analog input | ADC_IN2 | battery [charging current](#charger-control) control |
 | PA3 | analog input | ADC_IN3 | NC ??? |
 | PA4 | analog input | ADC_IN4 | IR diode of the left-center front sensor |
 | PA5 | analog input | ADC_IN5 | Connected to op-amp U5 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of left wheel motor|
@@ -45,14 +45,14 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | PB0 | analog input | ADC_IN8 | IR diode of the right-right front sensor |
 | PB1 | analog input | ADC_IN9 | IR diode of the right floor sensor |
 | PB2 | general purpose output (50MHz) push-pull | | KXCJ9 SDA |
-| PB3 | floating input | | |
-| PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | |
+| PB3 | floating input | | TDO/TRACESWO pin on J31 |
+| PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | RAA (???) mark on PCB (non-populated) |
 | PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | all brushes |
 | PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | left wheel reverse speed (TIM4/PWM via 74HC125D 2A) |
 | PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | left wheel forward speed (TIM4/PWM via 74HC125D 1A) |
 | PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | right wheel forward speed (TIM4/PWM via 74HC125D 4A) |
 | PB9 | alternate function output (50MHz) push-pull | TIM4_CH4 | right wheel reverse speed (TIM4/PWM via 74HC125D 3A) |
-| PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | |
+| PB10 | alternate function output (50MHz) push-pull | TIM2_CH3 | PWM for [battery charging](#charger-control) |
 | PB11 | general purpose output (50MHz) open-drain | | right wheel reverse [control](#wheel-motors-control) |
 | PB12 | general purpose output (50MHz) push-pull | | SPI2_NSS for U12 (non-populated) |
 | PB13 | general purpose output (50MHz) push-pull | | SPI2_SCK for U12 (non-populated) |
@@ -65,8 +65,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 |-|-|-|-|
 | PC0 | analog input | ADC_IN10 | IR diode of the left-left front sensor |
 | PC1 | analog input | ADC_IN11 | IR diode of the left floor sensor |
-| PC2 | analog input | ADC_IN12 | [Current control](#current-control-for-brush-motors) for brush motors|
-| PC3 | analog input | ADC_IN13 | [Current control](#current-control-for-air-pump-motor) for air pump motor|
+| PC2 | analog input | ADC_IN12 | [Current control](#current-control-for-dc-motors) for brush motors|
+| PC3 | analog input | ADC_IN13 | [Current control](#current-control-for-dc-motors) for air pump motor|
 | PC4 | analog input | ADC_IN14 | Connected to op-amp U6 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of right wheel motor|
 | PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor |
 | PC6 | floating input | | |
@@ -81,8 +81,8 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PD0 | floating input | source input for EXTI0 | |
-| PD1 | floating input | source input for EXIT1 | |
+| PD0 | floating input | source input for EXTI0 | some pin on J33 (LED) connector (???) |
+| PD1 | floating input | source input for EXIT1 | trough R9 to some pin on J28 (???) |
 | PD2 | general purpose output (50MHz) open-drain | | left wheel forward [control](#wheel-motors-control) |
 | PD3 | floating input | | |
 | PD4 | general purpose output (50MHz) push-pull | | |
@@ -99,16 +99,19 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
 | PE0 | general purpose output (50MHz) push-pull | | Beeper |
-| PE1 .. PE6 | floating input | | |
+| PE1 .. PE3 | floating input | | NC ??? |
+| PE4 | floating input | | [charge connector](#charger-control) detection |
+| PE5 | floating input | | [charge dock station](#charger-control) detection |
+| PE6 | floating input | | [battery presence](#charger-control) detection |
 | PE7 | general purpose output (50MHz) push-pull | | KXCJ9 SCL |
 | PE8 | floating input | | IR diode in right motor optical incremental encoder |
 | PE9 | floating input | | KXCJ9 INT |
 | PE10 | floating input | | |
-| PE11 | floating input | | |
+| PE11 | floating input | | NC ??? |
 | PE12 | general purpose output (50MHz) open-drain | | |
-| PE13 | floating input | | |
+| PE13 | floating input | | NC ??? |
 | PE14 | general purpose output (50MHz) open-drain | | right wheel forward [control](#wheel-motors-control) |
-| PE15 | general purpose output (50MHz) push-pull | | |
+| PE15 | general purpose output (50MHz) push-pull | | NC ??? |
 
 ### [Wheel motors control](#wheel-motors-control)
 From PCB investigation, it looks like SR-latch circuitry is used for direction control to protect H-bridges for main motors.
@@ -131,20 +134,19 @@ Left motor direction is controlled by PD2 and PD5:
 |  0   |   1  |  forward |
 |  1   |   1  |  stop |
 
-### [Current control for brush motors](#current-control-for-brush-motors)
+### [Current control for DC motors](#current-control-for-dc-motors)
 From PCB investigation, schematics looks as follows:
-![alt text](pics/mcu-pc3.jpg)
+![alt text](pics/dc-motor-current-control.jpg)
 
-### [Current control for air pump motor](#current-control-for-air-pump-motor)
+### [Battery voltage control](#battery-voltage-control)
 From PCB investigation, schematics looks as follows:
-![alt text](pics/mcu-pc2.jpg)
+![alt text](pics/battery-voltage.jpg)
+
+### [Charger control](#charger-control)
+From PCB investigation, schematics looks as follows:
+![alt text](pics/battery-charger.jpg)
 
 ### [Current control for wheel motors](#current-control-for-wheel-motors)
 Schematics: TODO
 
-### [Battery voltage control](#battery-voltage-control)
-From PCB investigation, schematics looks as follows:
-![alt text](pics/mcu-pa1.jpg)
 
-### [Charger control](#charger-control)
-Schematics: TODO
