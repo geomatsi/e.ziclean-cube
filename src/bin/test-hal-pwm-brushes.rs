@@ -13,15 +13,14 @@ extern crate panic_itm;
 
 use stm32f1xx_hal::{prelude::*, stm32};
 
-use stm32f1xx_hal::stm32::TIM3;
 use stm32f1xx_hal::gpio::gpiob::{PB4, PB5};
 use stm32f1xx_hal::gpio::{Alternate, PushPull};
 use stm32f1xx_hal::pwm::{Pins, Pwm, C1, C2};
+use stm32f1xx_hal::stm32::TIM3;
 
 struct Brushes(PB5<Alternate<PushPull>>);
 
-impl Pins<TIM3>  for Brushes
-{
+impl Pins<TIM3> for Brushes {
     const REMAP: u8 = 0b10;
     const C1: bool = false;
     const C2: bool = true;
@@ -50,9 +49,13 @@ fn main() -> ! {
 
     let pin = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
-    let mut pwm = p
-        .TIM3
-        .pwm(Brushes(pin), &mut afio.mapr, 10.khz(), clocks, &mut rcc.apb1);
+    let mut pwm = p.TIM3.pwm(
+        Brushes(pin),
+        &mut afio.mapr,
+        10.khz(),
+        clocks,
+        &mut rcc.apb1,
+    );
 
     let max = pwm.get_max_duty();
 
