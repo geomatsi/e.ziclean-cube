@@ -11,7 +11,7 @@ use cm::iprintln;
 
 extern crate panic_itm;
 
-use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
+use stm32f1xx_hal::{adc::Adc, prelude::*, stm32, time::Hertz};
 
 #[entry]
 fn main() -> ! {
@@ -23,6 +23,9 @@ fn main() -> ! {
     let mut rcc = p.RCC.constrain();
     let clocks = rcc.cfgr.adcclk(2.mhz()).freeze(&mut flash.acr);
 
+    iprintln!(d, "SYSCLK: {} Hz ...", clocks.sysclk().0);
+    iprintln!(d, "ADCCLK: {} Hz ...", clocks.adcclk().0);
+
     let mut gpioa = p.GPIOA.split(&mut rcc.apb2);
     let mut gpioe = p.GPIOE.split(&mut rcc.apb2);
 
@@ -31,7 +34,7 @@ fn main() -> ! {
     let mut ch2 = gpioa.pa2.into_analog(&mut gpioa.crl);
 
     // ADC setup
-    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2);
+    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks.adcclk());
 
     // pwr source indicators
     let plug = gpioe.pe4.into_floating_input(&mut gpioe.crl);
@@ -40,14 +43,12 @@ fn main() -> ! {
 
     loop {
         // Ambient temperature
-
-        let v_ref: u32 = adc.read_vref().into();
         let temp = adc.read_temp();
 
         iprintln!(d, "Temp: {} C", temp);
 
         // Battery voltage
-
+        let v_ref: u32 = adc.read_vref().into();
         let v_ch1: u32 = adc.read(&mut ch1).unwrap();
         // As per PCB investigation, battery voltage divider:
         // v_ch1 = v_bat * 20k / (200k + 20k) */
@@ -74,7 +75,7 @@ fn main() -> ! {
             batt.is_high()
         );
 
-        delay(1000);
+        delay(10000);
     }
 }
 
