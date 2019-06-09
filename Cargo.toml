@@ -71,6 +71,11 @@ path = "src/bin/test-hal-wheel-encoders.rs"
 required-features = [ "hal" ]
 
 [[bin]]
+name = "test-hal-battery-charging"
+path = "src/bin/test-hal-battery-charging.rs"
+required-features = [ "hal" ]
+
+[[bin]]
 name = "test-hal-pwr"
 path = "src/bin/test-hal-pwr.rs"
 required-features = [ "hal" ]
