@@ -5,7 +5,6 @@
 // - trivial 'step' obstacle check using IR sensor input from ADC
 
 #![deny(unsafe_code)]
-#![deny(warnings)]
 #![no_main]
 #![no_std]
 
@@ -215,7 +214,7 @@ const APP: () = {
         pwm.3.enable();
 
         // ADC setup
-        let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2);
+        let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks.adcclk());
         a1.set_sample_time(adc::AdcSampleTime::T_13);
 
         // configure and start TIM2 periodic timer
