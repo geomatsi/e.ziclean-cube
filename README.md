@@ -1,5 +1,18 @@
 # `e.ziclean cube`
 Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/aspirateur-robot-eziclean-cube.html) robot vacuum cleaner.
+## Software notes
+### Quick start guide
+
+Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
+```bash
+$ cargo build --features ral --no-default-features --examples
+```
+
+Build examples based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
+```bash
+$ cargo build --bins
+```
+
 
 ## Hardware notes
 ### Board
