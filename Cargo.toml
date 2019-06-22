@@ -28,6 +28,12 @@ cortex-m-rtfm = "0.4.3"
 version = "1.3.0"
 features = ["spin_no_std"]
 
+[dependencies.kxcj9]
+version = "0.2.0"
+
+[dependencies.bitbang-hal]
+git = "https://github.com/sajattack/bitbang-hal"
+
 [dependencies.stm32f1xx-hal]
 optional = true
 git = "https://github.com/stm32-rs/stm32f1xx-hal.git"
@@ -78,6 +84,11 @@ required-features = [ "hal" ]
 [[bin]]
 name = "test-hal-pwr"
 path = "src/bin/test-hal-pwr.rs"
+required-features = [ "hal" ]
+
+[[bin]]
+name = "test-hal-i2c-acc-test1"
+path = "src/bin/test-hal-i2c-acc-test1.rs"
 required-features = [ "hal" ]
 
 [[bin]]
