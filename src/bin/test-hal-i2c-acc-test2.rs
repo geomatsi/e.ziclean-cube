@@ -90,7 +90,6 @@ fn main() -> ! {
             // enable EXTI9 and configure interrupt on rising edge
             dp.EXTI.imr.modify(|_, w| w.mr9().set_bit());
             dp.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
-            dp.EXTI.ftsr.modify(|_, w| w.tr9().set_bit());
 
             let i2c = bitbang_hal::i2c::I2cBB::new(scl, sda, tmr);
 
@@ -104,7 +103,7 @@ fn main() -> ! {
 
             acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
                 .unwrap();
-            acc.set_interrupt_pin_latching(InterruptPinLatching::NonLatching)
+            acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
                 .unwrap();
             acc.enable_interrupt_pin().unwrap();
 
@@ -171,17 +170,17 @@ fn DefaultHandler(irqn: i16) {
 #[interrupt]
 fn EXTI9_5() {
     cm::interrupt::free(|cs| {
-        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
+        if let (Some(ref mut acc), Some(ref mut itm), Some(exti)) = (
+            G_ACC.borrow(cs).borrow_mut().deref_mut(),
+            G_ITM.borrow(cs).borrow_mut().deref_mut(),
+            G_EXTI.borrow(cs).borrow().as_ref(),
+        ) {
             let d = &mut itm.stim[0];
-            iprintln!(d, "Motion !");
-        }
-
-        if let Some(ref mut acc) = G_ACC.borrow(cs).borrow_mut().deref_mut() {
             let info = acc.read_interrupt_info().unwrap();
-            acc.clear_interrupts().unwrap();
-        }
 
-        if let Some(exti) = G_EXTI.borrow(cs).borrow().as_ref() {
+            iprintln!(d, "MOTION: {:?}", info);
+
+            acc.clear_interrupts().unwrap();
             exti.pr.modify(|_, w| w.pr9().set_bit());
         }
     });
