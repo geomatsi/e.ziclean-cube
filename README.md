@@ -24,6 +24,7 @@ $ cargo build --bins
 * Operational amplifier (3 pcs) LM324
 * Quad buffer/line driver 74HC125D
 * Display driver TM1668
+* One-channel touch sensor AT42QT1010
 
 ### Connector pinout
 | VDD (75) | TMS/SWD (72) | GND | TDI (77) | NTRST (90)|
@@ -46,7 +47,7 @@ $ cargo build --bins
 | PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor |
 | PA8 .. PA10 | floating input | | |
 | PA11 | general purpose output (50MHz) push-pull | | |
-| PA12 | floating input | | TM1667 STB |
+| PA12 | floating input | | TM1668 STB |
 | PA13 | input with pull-up/pull-down | | J31 (SWDIO) |
 | PA14 | input with pull-up/pull-down | | J31 (SWCLK) |
 | PA15 | general purpose output (50MHz) push-pull | | |
@@ -84,7 +85,7 @@ $ cargo build --bins
 | PC5 | analog input | ADC_IN15 | IR diode of the right-center front sensor |
 | PC6 | floating input | | |
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
-| PC8 | general purpose output (50MHz) push-pull | | TM1667 CLK |
+| PC8 | general purpose output (50MHz) push-pull | | TM1668 CLK |
 | PC9 .. PC10 | floating input | | |
 | PC11 | floating input | | |
 | PC12 | floating input | | IR diode in left motor optical incremental encoder |
@@ -94,8 +95,8 @@ $ cargo build --bins
 
 | Pin | Configuration | Mapping | Function |
 |-|-|-|-|
-| PD0 | floating input | source input for EXTI0 | some pin on J33 (LED) connector (???) |
-| PD1 | floating input | source input for EXIT1 | trough R9 to some pin on J28 (???) |
+| PD0 | floating input | | |
+| PD1 | floating input | | sensor button: AT42QT1010 output |
 | PD2 | general purpose output (50MHz) open-drain | | left wheel forward [control](#wheel-motors-control) |
 | PD3 | floating input | | |
 | PD4 | general purpose output (50MHz) push-pull | | |
@@ -104,8 +105,8 @@ $ cargo build --bins
 | PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
 | PD10 .. PD12 | floating input | | |
 | PD13 | general purpose output (50MHz) open-drain | | IR LEDs in optical incremental encoders for both main motors, active low |
-| PD14 | general purpose output (50MHz) push-pull | | TM1667 DIO |
-| PD15 | floating input | | IR diode of the top sensor (?) |
+| PD14 | general purpose output (50MHz) push-pull | | TM1668 DIO |
+| PD15 | floating input | | remote control: IR diode of the top sensor |
 
 #### GPIOE
 
