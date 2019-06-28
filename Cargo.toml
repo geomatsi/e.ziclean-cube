@@ -44,6 +44,10 @@ optional = true
 version = "0.2.0"
 features = ["stm32f101", "rt"]
 
+[dependencies.embedded-hal]
+version = "0.2.3"
+features = ["unproven"]
+
 # binaries
 
 [[bin]]
@@ -99,6 +103,11 @@ required-features = [ "hal" ]
 [[bin]]
 name = "test-hal-sensor-button"
 path = "src/bin/test-hal-sensor-button.rs"
+required-features = [ "hal" ]
+
+[[bin]]
+name = "test-hal-i2c-disp-test1"
+path = "src/bin/test-hal-i2c-disp-test1.rs"
 required-features = [ "hal" ]
 
 [[bin]]

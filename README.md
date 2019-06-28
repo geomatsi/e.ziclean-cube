@@ -46,8 +46,8 @@ $ cargo build --bins
 | PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor |
 | PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor |
 | PA8 .. PA10 | floating input | | |
-| PA11 | general purpose output (50MHz) push-pull | | |
-| PA12 | floating input | | TM1668 STB |
+| PA11 | general purpose output (50MHz) push-pull | | TM1668 STB |
+| PA12 | floating input | | |
 | PA13 | input with pull-up/pull-down | | J31 (SWDIO) |
 | PA14 | input with pull-up/pull-down | | J31 (SWCLK) |
 | PA15 | general purpose output (50MHz) push-pull | | |
