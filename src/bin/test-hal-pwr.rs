@@ -11,7 +11,7 @@ use cm::iprintln;
 
 extern crate panic_itm;
 
-use stm32f1xx_hal::{adc::Adc, prelude::*, stm32, time::Hertz};
+use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
@@ -34,7 +34,7 @@ fn main() -> ! {
     let mut ch2 = gpioa.pa2.into_analog(&mut gpioa.crl);
 
     // ADC setup
-    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks.adcclk());
+    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
 
     // pwr source indicators
     let plug = gpioe.pe4.into_floating_input(&mut gpioe.crl);

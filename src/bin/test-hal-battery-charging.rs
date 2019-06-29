@@ -59,7 +59,7 @@ fn main() -> ! {
     let batt = gpioe.pe6.into_floating_input(&mut gpioe.crl);
 
     // ADC1 setup
-    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks.adcclk());
+    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
     let adc_max_range: u16 = adc.max_sample();
 
     // TIM2 PWM setup

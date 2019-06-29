@@ -214,7 +214,7 @@ const APP: () = {
         pwm.3.enable();
 
         // ADC setup
-        let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks.adcclk());
+        let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
         a1.set_sample_time(adc::AdcSampleTime::T_13);
 
         // configure and start TIM2 periodic timer

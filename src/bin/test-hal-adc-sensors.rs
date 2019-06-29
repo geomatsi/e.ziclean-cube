@@ -63,7 +63,7 @@ fn main() -> ! {
     bottom_leds.set_high();
 
     // ADC setup
-    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks.adcclk());
+    let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
     let max_range: u16 = adc.max_sample();
 
     let mut front_left_90 = ch10;
