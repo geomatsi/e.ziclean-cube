@@ -107,6 +107,11 @@ path = "src/bin/test-hal-i2c-disp-test1.rs"
 required-features = [ "hal" ]
 
 [[bin]]
+name = "test-hal-ir-rc-test1"
+path = "src/bin/test-hal-ir-rc-test1.rs"
+required-features = [ "hal" ]
+
+[[bin]]
 name = "test-hal-rtfm-robot-v1"
 path = "src/bin/test-hal-rtfm-robot-v1.rs"
 required-features = [ "hal" ]
