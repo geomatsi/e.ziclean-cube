@@ -45,12 +45,14 @@ $ cargo build --bins
 | PA5 | analog input | ADC_IN5 | Connected to op-amp U5 (LM324): seems to be a [current control](#current-control-for-wheel-motors) circuitry of left wheel motor|
 | PA6 | analog input | ADC_IN6 | IR diode of the center-center front sensor |
 | PA7 | analog input | ADC_IN7 | IR diode of the central floor sensor |
-| PA8 .. PA10 | floating input | | |
+| PA8 | floating input | | |
+| PA9 | floating input | | J31 (TX) |
+| PA10 | floating input | | J31 (RX) |
 | PA11 | general purpose output (50MHz) push-pull | | TM1668 STB |
 | PA12 | floating input | | |
 | PA13 | input with pull-up/pull-down | | J31 (SWDIO) |
 | PA14 | input with pull-up/pull-down | | J31 (SWCLK) |
-| PA15 | general purpose output (50MHz) push-pull | | |
+| PA15 | general purpose output (50MHz) push-pull | | J31 (TDI) |
 
 #### GPIOB
 
@@ -87,7 +89,7 @@ $ cargo build --bins
 | PC7 | general purpose output (50MHz) push-pull | | IR LEDs of all 5 front IR obstacle sensors |
 | PC8 | general purpose output (50MHz) push-pull | | TM1668 CLK |
 | PC9 .. PC10 | floating input | | |
-| PC11 | floating input | | |
+| PC11 | floating input | | RC IR: left diode |
 | PC12 | floating input | | IR diode in left motor optical incremental encoder |
 | PC13 .. PC15 | floating input | | |
 
@@ -103,10 +105,12 @@ $ cargo build --bins
 | PD5 | general purpose output (50MHz) open-drain | | left wheel reverse [control](#wheel-motors-control) |
 | PD6 .. PD8 | floating input | | |
 | PD9 | general purpose output (50MHz) push-pull | | IR LEDs of all 3 bottom IR floor sensors |
-| PD10 .. PD12 | floating input | | |
+| PD10 | floating input | | |
+| PD11 | floating input | | RC IR: front diode |
+| PD12 | floating input | | |
 | PD13 | general purpose output (50MHz) open-drain | | IR LEDs in optical incremental encoders for both main motors, active low |
 | PD14 | general purpose output (50MHz) push-pull | | TM1668 DIO |
-| PD15 | floating input | | remote control: IR diode of the top sensor |
+| PD15 | floating input | | RC IR: top diode |
 
 #### GPIOE
 
@@ -120,9 +124,9 @@ $ cargo build --bins
 | PE7 | general purpose output (50MHz) push-pull | | KXCJ9 SCL |
 | PE8 | floating input | | IR diode in right motor optical incremental encoder |
 | PE9 | floating input | | KXCJ9 INT |
-| PE10 | floating input | | |
+| PE10 | floating input | | RC IR: right diode |
 | PE11 | floating input | | NC ??? |
-| PE12 | general purpose output (50MHz) open-drain | | |
+| PE12 | general purpose output (50MHz) open-drain | | Enable power for IR RC left/front/right diodes (via R22 and Q7) |
 | PE13 | floating input | | NC ??? |
 | PE14 | general purpose output (50MHz) open-drain | | right wheel forward [control](#wheel-motors-control) |
 | PE15 | general purpose output (50MHz) push-pull | | NC ??? |
