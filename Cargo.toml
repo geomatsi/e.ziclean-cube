@@ -44,10 +44,6 @@ optional = true
 version = "0.2.0"
 features = ["stm32f101", "rt"]
 
-[dependencies.embedded-hal]
-version = "0.2.3"
-features = ["unproven"]
-
 # binaries
 
 [[bin]]

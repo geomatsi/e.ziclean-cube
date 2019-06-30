@@ -11,13 +11,12 @@ use cm::iprintln;
 
 extern crate panic_itm;
 
-use bitbang_hal;
+extern crate bitbang_hal;
+use bitbang_hal::spi::BitOrder;
+use bitbang_hal::spi::MODE_3;
 
 use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
-
-extern crate embedded_hal;
-use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
 extern crate nb;
 use nb::block;
@@ -52,6 +51,7 @@ fn main() -> ! {
     let mut delay = Timer::tim3(p.TIM3, 1.hz(), clocks, &mut rcc.apb1);
 
     let mut spi = bitbang_hal::spi::SPI::new(MODE_3, tmp, dio, clk, timer);
+    spi.set_bit_order(BitOrder::LSBFirst);
 
     iprintln!(dbg, "start... wait 1 sec...");
     stb.set_high();
@@ -72,16 +72,16 @@ fn main() -> ! {
     block!(spi.send(0b1000_1010)).unwrap();
     stb.set_high();
 
-    // e.ziclean display connected to TM1668 so that
-    // data is fixed for each grid, but addr varies
-    //
-    // besides, (addr = 6, data = 2) -> ':' symbol on display
+    // e.ziclean display connected to TM1668 so that address byte varies
+    // while data byte is fixes for each grid
 
     let addr = [0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc];
     let grid1 = 0x08;
     let grid2 = 0x80;
     let grid3 = 0x40;
     let grid4 = 0x20;
+
+    // TODO: (addr = 6, data = 2) -> ':' symbol on display
 
     // segment 'bitmaps' for digits in all 4 grids
 
