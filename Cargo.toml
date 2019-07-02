@@ -112,6 +112,11 @@ path = "src/bin/test-hal-ir-rc-test1.rs"
 required-features = [ "hal" ]
 
 [[bin]]
+name = "test-hal-timer-irq"
+path = "src/bin/test-hal-timer-irq.rs"
+required-features = [ "hal" ]
+
+[[bin]]
 name = "test-hal-rtfm-robot-v1"
 path = "src/bin/test-hal-rtfm-robot-v1.rs"
 required-features = [ "hal" ]
