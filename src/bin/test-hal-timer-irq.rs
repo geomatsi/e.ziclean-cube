@@ -9,6 +9,7 @@ use rt::ExceptionFrame;
 extern crate cortex_m as cm;
 use cm::interrupt::Mutex;
 use cm::iprintln;
+use cm::peripheral::syst::SystClkSource;
 
 extern crate panic_itm;
 
@@ -47,7 +48,14 @@ fn main() -> ! {
                 .pclk1(8.mhz())
                 .freeze(&mut flash.acr);
 
-            // configure and start periodic timers
+            // configure SysTick timer
+            let mut syst = cp.SYST;
+            syst.set_clock_source(SystClkSource::Core);
+            syst.set_reload(16_000_000 - 1);
+            syst.enable_counter();
+            syst.enable_interrupt();
+
+            // configure and start periodic GP timers
             let mut tim2 = Timer::tim2(dp.TIM2, 1.hz(), clocks, &mut rcc.apb1);
             let mut tim3 = Timer::tim3(dp.TIM3, 1.hz(), clocks, &mut rcc.apb1);
             let mut tim4 = Timer::tim4(dp.TIM4, 1.hz(), clocks, &mut rcc.apb1);
@@ -138,6 +146,17 @@ fn TIM4() {
 
             iprintln!(d, "TIM4");
             tim.start(1.hz());
+        }
+    });
+}
+
+#[exception]
+fn SysTick() {
+    cm::interrupt::free(|cs| {
+        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
+            let d = &mut itm.stim[0];
+
+            iprintln!(d, "SYSTICK");
         }
     });
 }
