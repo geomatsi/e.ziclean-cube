@@ -62,8 +62,8 @@ $ cargo build --bins
 | PB1 | analog input | ADC_IN9 | IR diode of the right floor sensor |
 | PB2 | general purpose output (50MHz) push-pull | | KXCJ9 SDA |
 | PB3 | floating input | | TDO/TRACESWO pin on J31 |
-| PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | RAA (???) mark on PCB (non-populated) |
-| PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | all brushes |
+| PB4 | alternate function output (50MHz) push-pull | TIM3_CH1 | pump motor: must remap AFIO/SWJ_CFG since default configuration of PB4 is NJTRST |
+| PB5 | alternate function output (50MHz) push-pull | TIM3_CH2 | all 3 brushes |
 | PB6 | alternate function output (50MHz) push-pull | TIM4_CH1 | left wheel reverse speed (TIM4/PWM via 74HC125D 2A) |
 | PB7 | alternate function output (50MHz) push-pull | TIM4_CH2 | left wheel forward speed (TIM4/PWM via 74HC125D 1A) |
 | PB8 | alternate function output (50MHz) push-pull | TIM4_CH3 | right wheel forward speed (TIM4/PWM via 74HC125D 4A) |
