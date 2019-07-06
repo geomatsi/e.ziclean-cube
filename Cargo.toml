@@ -44,126 +44,128 @@ optional = true
 version = "0.2.0"
 features = ["stm32f101", "rt"]
 
-# binaries
-
-[[bin]]
-name = "test-ral-adc-sensors"
-path = "src/bin/test-ral-adc-sensors.rs"
-required-features = [ "ral" ]
-
-[[bin]]
-name = "test-ral-pwm-wheels"
-path = "src/bin/test-ral-pwm-wheels.rs"
-required-features = [ "ral" ]
-
-[[bin]]
-name = "test-hal-pwm-wheels"
-path = "src/bin/test-hal-pwm-wheels.rs"
-required-features = [ "hal"] 
-
-[[bin]]
-name = "test-hal-pwm-brushes"
-path = "src/bin/test-hal-pwm-brushes.rs"
-required-features = [ "hal"] 
-
-[[bin]]
-name = "test-hal-adc-sensors"
-path = "src/bin/test-hal-adc-sensors.rs"
-required-features = [ "hal"] 
-
-[[bin]]
-name = "test-hal-wheel-encoders"
-path = "src/bin/test-hal-wheel-encoders.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-battery-charging"
-path = "src/bin/test-hal-battery-charging.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-pwr"
-path = "src/bin/test-hal-pwr.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-i2c-acc-test1"
-path = "src/bin/test-hal-i2c-acc-test1.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-i2c-acc-test2"
-path = "src/bin/test-hal-i2c-acc-test2.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-sensor-button"
-path = "src/bin/test-hal-sensor-button.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-i2c-disp-test1"
-path = "src/bin/test-hal-i2c-disp-test1.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-ir-rc-test1"
-path = "src/bin/test-hal-ir-rc-test1.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-timer-irq"
-path = "src/bin/test-hal-timer-irq.rs"
-required-features = [ "hal" ]
+# main
 
 [[bin]]
 name = "test-hal-rtfm-robot-v1"
 path = "src/bin/test-hal-rtfm-robot-v1.rs"
 required-features = [ "hal" ]
 
-# examples
+# hal examples
 
 [[example]]
-name = "example-beep"
-path = "examples/ral/example-beep.rs"
+name = "example-hal-pwm-wheels"
+path = "examples/hal/example-hal-pwm-wheels.rs"
+required-features = [ "hal"] 
+
+[[example]]
+name = "example-hal-pwm-brushes"
+path = "examples/hal/example-hal-pwm-brushes.rs"
+required-features = [ "hal"] 
+
+[[example]]
+name = "example-hal-adc-sensors"
+path = "examples/hal/example-hal-adc-sensors.rs"
+required-features = [ "hal"] 
+
+[[example]]
+name = "example-hal-wheel-encoders"
+path = "examples/hal/example-hal-wheel-encoders.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-battery-charging"
+path = "examples/hal/example-hal-battery-charging.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-pwr"
+path = "examples/hal/example-hal-pwr.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-i2c-acc-test1"
+path = "examples/hal/example-hal-i2c-acc-test1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-i2c-acc-test2"
+path = "examples/hal/example-hal-i2c-acc-test2.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-sensor-button"
+path = "examples/hal/example-hal-sensor-button.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-i2c-disp-test1"
+path = "examples/hal/example-hal-i2c-disp-test1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-ir-rc-test1"
+path = "examples/hal/example-hal-ir-rc-test1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-timer-irq"
+path = "examples/hal/example-hal-timer-irq.rs"
+required-features = [ "hal" ]
+
+# ral examples
+
+[[example]]
+name = "example-ral-beep"
+path = "examples/ral/example-ral-beep.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-front-ir-leds"
-path = "examples/ral/example-front-ir-leds.rs"
+name = "example-ral-front-ir-leds"
+path = "examples/ral/example-ral-front-ir-leds.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-bottom-ir-les"
-path = "examples/ral/example-bottom-ir-leds.rs"
+name = "example-ral-bottom-ir-les"
+path = "examples/ral/example-ral-bottom-ir-leds.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-right-wheel"
-path = "examples/ral/example-right-wheel.rs"
+name = "example-ral-right-wheel"
+path = "examples/ral/example-ral-right-wheel.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-left-wheel"
-path = "examples/ral/example-left-wheel.rs"
+name = "example-ral-left-wheel"
+path = "examples/ral/example-ral-left-wheel.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-brushes"
-path = "examples/ral/example-brushes.rs"
+name = "example-ral-brushes"
+path = "examples/ral/example-ral-brushes.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-wheel-encoders"
-path = "examples/ral/example-wheel-encoders.rs"
+name = "example-ral-wheel-encoders"
+path = "examples/ral/example-ral-wheel-encoders.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-floor-sensors"
-path = "examples/ral/example-floor-sensors.rs"
+name = "example-ral-floor-sensors"
+path = "examples/ral/example-ral-floor-sensors.rs"
 required-features = [ "ral"] 
 
 [[example]]
-name = "example-front-sensors"
-path = "examples/ral/example-front-sensors.rs"
+name = "example-ral-front-sensors"
+path = "examples/ral/example-ral-front-sensors.rs"
 required-features = [ "ral"] 
+
+[[example]]
+name = "example-ral-adc-sensors"
+path = "examples/ral/example-ral-adc-sensors.rs"
+required-features = [ "ral" ]
+
+[[example]]
+name = "example-ral-pwm-wheels"
+path = "examples/ral/example-ral-pwm-wheels.rs"
+required-features = [ "ral" ]

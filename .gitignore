@@ -2,3 +2,4 @@
 **/*.rs.bk
 rusty-tags.vi
 .idea
+Cargo.lock

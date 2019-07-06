@@ -158,8 +158,8 @@ fn main() -> ! {
     loop {
         for s in 0..duty.len() {
             hprintln!("duty {}", duty[s]).unwrap();
-            modify_reg!(tim4, tim4, CCR1, CCR1: duty[s]);
-            modify_reg!(tim4, tim4, CCR3, CCR3: duty[s]);
+            modify_reg!(tim4, tim4, CCR1, CCR: duty[s]);
+            modify_reg!(tim4, tim4, CCR3, CCR: duty[s]);
             delay(20000);
         }
     }

@@ -3,16 +3,20 @@ Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/as
 ## Software notes
 ### Quick start guide
 
-Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
-```bash
-$ cargo build --features ral --no-default-features --examples
-```
-
-Build examples based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
+Build experimental firmwares based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
 $ cargo build --bins
 ```
 
+Build examples based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
+```bash
+$ cargo build --examples
+```
+
+Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
+```bash
+$ cargo build --features ral --no-default-features --examples
+```
 
 ## Hardware notes
 ### Board
