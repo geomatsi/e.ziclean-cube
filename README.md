@@ -1,7 +1,6 @@
 # `e.ziclean cube`
 Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/aspirateur-robot-eziclean-cube.html) robot vacuum cleaner.
-## Software notes
-### Quick start guide
+## Quick start guide
 
 Build experimental firmwares based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
@@ -170,5 +169,25 @@ From PCB investigation, schematics looks as follows:
 
 ### [Current control for wheel motors](#current-control-for-wheel-motors)
 Schematics: TODO
+
+### Input GPIO pins and EXTI lines budget
+| Function | GPIO | EXTI line | EXTI interrupt | Comments |
+|-|-|-|-|-|
+| KXCJ9 INT | PE9 | EXTI9 | EXTI9_5 ||
+| TOP IR RC diode | PD15 | EXTI15 | EXTI15_10 ||
+| Left IR RC diode | PC11 | EXTI11 | EXTI15_10 | Only one Px11 GPIO pin can be selected for EXTI11 line |
+| Front IR RC diode | PD11 | EXTI11 | EXTI15_10 | Only one Px11 GPIO pin can be selected for EXTI11 line |
+| Right IR RC diode | PE10 | EXTI10 | EXTI15_10 | |
+| Button | PD1 | EXTI1 | EXTI1 | |
+| Left wheel encoder | PC12 | EXTI12 | EXTI15_10 | |
+| Right wheel encoder | PE8 | EXTI8 | EXTI9_5 | |
+| Charger detect | PE4 | EXTI4 | EXTI4 | |
+| Dock detect | PE5 | EXTI5 | EXTI9_5 | |
+| Battery detect | PE6 | EXTI6 | EXTI9_5 | |
+
+Note that left and front IR remote control diodes are connected to PC11 and PD11 respectively. As a result, both these GPIO lines are attached to the same EXTI11 line and only one of them can be selected as EXTI source.
+
+## Firmware notes
+TODO
 
 
