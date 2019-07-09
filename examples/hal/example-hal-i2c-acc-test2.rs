@@ -12,9 +12,6 @@ use cm::iprintln;
 
 extern crate panic_itm;
 
-extern crate lazy_static;
-use lazy_static::lazy_static;
-
 extern crate stm32f1xx_hal as hal;
 use hal::device::{TIM2, TIM3};
 use hal::gpio::gpiob::PB2;
@@ -44,12 +41,10 @@ use core::ops::DerefMut;
 
 type GAccType = Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, Timer<TIM2>>, G8Device>;
 
-lazy_static! {
-    static ref G_EXTI: Mutex<RefCell<Option<stm32::EXTI>>> = Mutex::new(RefCell::new(None));
-    static ref G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
-    static ref G_TMR: Mutex<RefCell<Option<Timer<TIM3>>>> = Mutex::new(RefCell::new(None));
-    static ref G_ACC: Mutex<RefCell<Option<GAccType>>> = Mutex::new(RefCell::new(None));
-}
+static G_EXTI: Mutex<RefCell<Option<stm32::EXTI>>> = Mutex::new(RefCell::new(None));
+static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
+static G_TMR: Mutex<RefCell<Option<Timer<TIM3>>>> = Mutex::new(RefCell::new(None));
+static G_ACC: Mutex<RefCell<Option<GAccType>>> = Mutex::new(RefCell::new(None));
 
 /* */
 

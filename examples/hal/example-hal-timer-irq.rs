@@ -13,9 +13,6 @@ use cm::peripheral::syst::SystClkSource;
 
 extern crate panic_itm;
 
-extern crate lazy_static;
-use lazy_static::lazy_static;
-
 extern crate stm32f1xx_hal as hal;
 use core::cell::RefCell;
 use core::ops::DerefMut;
@@ -25,12 +22,10 @@ use hal::stm32::interrupt;
 use hal::timer::Event;
 use hal::timer::Timer;
 
-lazy_static! {
-    static ref G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
-    static ref G_TIM2: Mutex<RefCell<Option<Timer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
-    static ref G_TIM3: Mutex<RefCell<Option<Timer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
-    static ref G_TIM4: Mutex<RefCell<Option<Timer<stm32::TIM4>>>> = Mutex::new(RefCell::new(None));
-}
+static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
+static G_TIM2: Mutex<RefCell<Option<Timer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
+static G_TIM3: Mutex<RefCell<Option<Timer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
+static G_TIM4: Mutex<RefCell<Option<Timer<stm32::TIM4>>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {

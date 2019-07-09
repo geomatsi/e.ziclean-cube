@@ -12,9 +12,6 @@ use cm::iprintln;
 
 extern crate panic_itm;
 
-extern crate lazy_static;
-use lazy_static::lazy_static;
-
 extern crate stm32f1xx_hal as hal;
 use hal::prelude::*;
 use hal::stm32;
@@ -26,10 +23,8 @@ use core::ops::DerefMut;
 type ExtIntr = stm32::EXTI;
 type DbgPort = stm32::ITM;
 
-lazy_static! {
-    static ref G_EXTI: Mutex<RefCell<Option<ExtIntr>>> = Mutex::new(RefCell::new(None));
-    static ref G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
-}
+static G_EXTI: Mutex<RefCell<Option<ExtIntr>>> = Mutex::new(RefCell::new(None));
+static G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
