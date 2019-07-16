@@ -23,6 +23,10 @@ panic-itm = "0.4.1"
 nb = "0.1.2"
 cortex-m-rtfm = "0.4.3"
 
+[dependencies.embedded-hal]
+version="0.2.3"
+features=["unproven"]
+
 [dependencies.cortex-m]
 version="0.6.0"
 features=["const-fn"]
