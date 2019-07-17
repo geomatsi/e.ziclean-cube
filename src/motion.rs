@@ -1,3 +1,8 @@
+#![allow(deprecated)]
+
+use embedded_hal::digital::v1::OutputPin;
+use embedded_hal::PwmPin;
+
 use super::*;
 
 // left wheel gear control
@@ -70,6 +75,7 @@ pub enum Error {
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Direction {
     Forward,
+    None,
     Reverse,
 }
 
@@ -83,24 +89,29 @@ pub enum Rotation {
 /// Gear
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Gear {
-    Neutral,
     Low,
     Medium,
     Top,
 }
 
+impl Into<usize> for Gear {
+    fn into(self) -> usize {
+        match self {
+            Gear::Low => 0,
+            Gear::Medium => 1,
+            Gear::Top => 2,
+        }
+    }
+}
+
 /// Left Wheel
 struct LeftWheel {
-    dir: Direction,
-    gear: Gear,
     gc: LeftGear,
     dc: LeftDir,
 }
 
 /// Right Wheel
 struct RightWheel {
-    dir: Direction,
-    gear: Gear,
     gc: RightGear,
     dc: RightDir,
 }
@@ -111,6 +122,8 @@ pub struct Motion {
     right: RightWheel,
     /// Left wheel state
     left: LeftWheel,
+    /// max pwm duty
+    duty: [u16; 3],
 }
 
 impl Motion {
@@ -122,17 +135,14 @@ impl Motion {
     ) -> Self {
         let mut m = Motion {
             left: LeftWheel {
-                dir: Direction::Forward,
-                gear: Gear::Neutral,
                 gc: (lgf, lgr),
                 dc: (lcf, lcr),
             },
             right: RightWheel {
-                dir: Direction::Forward,
-                gear: Gear::Neutral,
                 gc: (rgf, rgr),
                 dc: (rcf, rcr),
             },
+            duty: [0; 3],
         };
 
         m.left.gc.0.disable();
@@ -147,18 +157,25 @@ impl Motion {
         m.right.dc.0.set_low();
         m.right.dc.1.set_low();
 
+        let max_duty = m.right.gc.0.get_max_duty();
+
+        m.duty[0] = max_duty / 4 as u16;
+        m.duty[1] = max_duty / 2 as u16;
+        m.duty[2] = max_duty / 1 as u16;
+
         m
+    }
+
+    pub fn stop(&mut self) -> Result<(), Error> {
+        self.set_right_wheel(Direction::None, Gear::Low)?;
+        self.set_left_wheel(Direction::None, Gear::Low)?;
+
+        Ok(())
     }
 
     pub fn forward(&mut self, gear: Gear) -> Result<(), Error> {
         self.set_right_wheel(Direction::Forward, gear)?;
         self.set_left_wheel(Direction::Forward, gear)?;
-
-        Ok(())
-    }
-
-    pub fn stop(&mut self) -> Result<(), Error> {
-        self.forward(Gear::Neutral)?;
 
         Ok(())
     }
@@ -186,10 +203,46 @@ impl Motion {
     }
 
     pub fn set_left_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
+        self.left.gc.0.set_duty(self.duty[gear as usize]);
+        self.left.gc.1.set_duty(self.duty[gear as usize]);
+
+        match dir {
+            Direction::None => {
+                self.left.dc.0.set_low();
+                self.left.dc.1.set_low();
+            }
+            Direction::Forward => {
+                self.left.dc.0.set_high();
+                self.left.dc.1.set_low();
+            }
+            Direction::Reverse => {
+                self.left.dc.0.set_low();
+                self.left.dc.1.set_high();
+            }
+        };
+
         Ok(())
     }
 
     pub fn set_right_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
+        self.right.gc.0.set_duty(self.duty[gear as usize]);
+        self.right.gc.1.set_duty(self.duty[gear as usize]);
+
+        match dir {
+            Direction::None => {
+                self.right.dc.0.set_low();
+                self.right.dc.1.set_low();
+            }
+            Direction::Forward => {
+                self.right.dc.0.set_high();
+                self.right.dc.1.set_low();
+            }
+            Direction::Reverse => {
+                self.right.dc.0.set_low();
+                self.right.dc.1.set_high();
+            }
+        };
+
         Ok(())
     }
 }
