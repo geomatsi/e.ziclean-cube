@@ -1,9 +1,9 @@
-//
 // Dummy robot:
 // - all processing in timer interrupt: read adc, update motors
 // - straightforward dummy logic for avoiding obstacles
 // - trivial 'step' obstacle check using IR sensor input from ADC
 
+#![allow(deprecated)]
 #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
@@ -24,6 +24,9 @@ use hal::prelude::*;
 use hal::stm32;
 use hal::timer;
 
+use eziclean::motion;
+use eziclean::motion::{Direction, Gear, Motion, Rotation};
+
 /* */
 
 pub struct FrontSensors {
@@ -38,26 +41,6 @@ pub struct BottomSensors {
     pub sl: u16,
     pub sc: u16,
     pub sr: u16,
-}
-
-pub enum WheelDirection {
-    Forward,
-    Reverse,
-}
-
-pub enum WheelSpeed {
-    Slow,
-    Fast,
-}
-
-pub struct Wheel {
-    pub speed: WheelSpeed,
-    pub dir: WheelDirection,
-}
-
-pub struct WheelControl {
-    pub left: Wheel,
-    pub right: Wheel,
 }
 
 /* */
@@ -81,21 +64,8 @@ const APP: () = {
     static mut bottom_center: gpio::gpioa::PA7<gpio::Analog> = ();
     static mut bottom_right: gpio::gpiob::PB1<gpio::Analog> = ();
 
-    // left wheel controls
-    static mut left_fwd: gpio::gpiod::PD5<gpio::Output<gpio::OpenDrain>> = ();
-    static mut left_rev: gpio::gpiod::PD2<gpio::Output<gpio::OpenDrain>> = ();
-
-    // right wheel controls
-    static mut right_fwd: gpio::gpiob::PB11<gpio::Output<gpio::OpenDrain>> = ();
-    static mut right_rev: gpio::gpioe::PE14<gpio::Output<gpio::OpenDrain>> = ();
-
-    // pwm wheels control
-    static mut pwm: (
-        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C1>,
-        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C2>,
-        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C3>,
-        hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C4>,
-    ) = ();
+    // Motion control
+    static mut drive: Motion = ();
 
     #[init]
     fn init() {
@@ -153,54 +123,19 @@ const APP: () = {
         let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
         bottom_leds.set_high();
 
-        // NOTE: it looks like PD2 and PD5 are control signal of
-        // SR-latch circuitry protecting H-bridge for left motor
-        //  _________________________
-        // | PD2  | PD5  | FWD | REV |
-        //  _________________________
-        // |  0   |   0  |  -  |  -  |
-        //  _________________________
-        // |  1   |   0  |  -  |  +  |
-        //  _________________________
-        // |  0   |   1  |  +  |  -  |
-        //  _________________________
-        // |  1   |   1  |  -  |  -  |
-        //  _________________________
+        // Motion controls
 
-        let mut left_rev = gpiod.pd2.into_open_drain_output(&mut gpiod.crl);
-        left_rev.set_low();
-
-        let mut left_fwd = gpiod.pd5.into_open_drain_output(&mut gpiod.crl);
-        left_fwd.set_low();
-
-        // NOTE: it looks like PE14 and PB11 are control signal of
-        // SR-latch circuitry protecting H-bridge for right motor
-        //  _________________________
-        // | PE14 | PB11 | FWD | REV |
-        //  _________________________
-        // |  0   |   0  |  -  |  -  |
-        //  _________________________
-        // |  1   |   0  |  -  |  +  |
-        //  _________________________
-        // |  0   |   1  |  +  |  -  |
-        //  _________________________
-        // |  1   |   1  |  -  |  -  |
-        //  _________________________
-
-        let mut right_rev = gpioe.pe14.into_open_drain_output(&mut gpioe.crh);
-        right_rev.set_low();
-
-        let mut right_fwd = gpiob.pb11.into_open_drain_output(&mut gpiob.crh);
-        right_fwd.set_low();
-
-        // TIM4
+        let l_rev = gpiod.pd2.into_open_drain_output(&mut gpiod.crl);
+        let l_fwd = gpiod.pd5.into_open_drain_output(&mut gpiod.crl);
+        let r_rev = gpioe.pe14.into_open_drain_output(&mut gpioe.crh);
+        let r_fwd = gpiob.pb11.into_open_drain_output(&mut gpiob.crh);
 
         let c1 = gpiob.pb6.into_alternate_push_pull(&mut gpiob.crl);
         let c2 = gpiob.pb7.into_alternate_push_pull(&mut gpiob.crl);
         let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-        let mut pwm = device.TIM4.pwm(
+        let pwm = device.TIM4.pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
             500.hz(),
@@ -208,10 +143,13 @@ const APP: () = {
             &mut rcc.apb1,
         );
 
-        pwm.0.enable();
-        pwm.1.enable();
-        pwm.2.enable();
-        pwm.3.enable();
+        let mut m = Motion::init(
+            (pwm.1, pwm.0),
+            (pwm.2, pwm.3),
+            (l_fwd, l_rev),
+            (r_fwd, r_rev),
+        );
+        m.stop().unwrap();
 
         // ADC setup
         let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
@@ -221,21 +159,10 @@ const APP: () = {
         let mut t2 = timer::Timer::tim2(device.TIM2, 50.hz(), clocks, &mut rcc.apb1);
         t2.listen(timer::Event::Update);
 
-        // start moving forward !
-        let max_duty = pwm.0.get_max_duty();
-        let duty = max_duty / 2 as u16;
-
-        iprintln!(dbg, "max_duty[{}] duty[{}]", max_duty, duty);
-        pwm.0.set_duty(duty);
-        pwm.1.set_duty(duty);
-        pwm.2.set_duty(duty);
-        pwm.3.set_duty(duty);
-
         // init late resources
 
         tmr2 = t2;
         adc1 = a1;
-        pwm = pwm;
         itm = core.ITM;
 
         front_left_90 = ch10;
@@ -248,10 +175,7 @@ const APP: () = {
         bottom_center = ch7;
         bottom_right = ch9;
 
-        left_fwd = left_fwd;
-        left_rev = left_rev;
-        right_fwd = right_fwd;
-        right_rev = right_rev;
+        drive = m;
     }
 
     #[idle()]
@@ -263,7 +187,7 @@ const APP: () = {
 
     #[interrupt(resources = [
                 // hardware units
-                tmr2, adc1, pwm, itm,
+                tmr2, adc1, itm,
                 // front IR sensors
                 front_left_90,
                 front_left_45,
@@ -274,19 +198,12 @@ const APP: () = {
                 bottom_left,
                 bottom_center,
                 bottom_right,
-                // left wheel
-                left_fwd,
-                left_rev,
-                // right wheel
-                right_fwd,
-                right_rev
+                // motion control
+                drive
     ])]
     fn TIM2() {
         let dbg = &mut resources.itm.stim[0];
         let max_range: u16 = resources.adc1.max_sample();
-        let max_duty: u16 = resources.pwm.0.get_max_duty();
-        let fast: u16 = 2 * max_duty / 3 as u16;
-        let slow: u16 = 3 * max_duty / 4 as u16;
 
         let front = FrontSensors {
             sll: resources.adc1.read(resources.front_left_90).unwrap(),
@@ -304,7 +221,7 @@ const APP: () = {
 
         iprintln!(
             dbg,
-            "front: ({},{},{},{},{})",
+            "raw front sensors: ({},{},{},{},{})",
             front.sll,
             front.slc,
             front.scc,
@@ -312,135 +229,45 @@ const APP: () = {
             front.srr
         );
 
-        let wheels = next_move(front, bottom, max_range);
+        let (dl, dc, dr) = make_decision(resources.drive, front, bottom, max_range).unwrap();
+        iprintln!(dbg, "decision input: {} {} {}", dl, dc, dr);
 
-        match wheels.left.dir {
-            WheelDirection::Forward => {
-                resources.left_fwd.set_high();
-                resources.left_rev.set_low();
-            }
-            WheelDirection::Reverse => {
-                resources.left_fwd.set_low();
-                resources.left_rev.set_high();
-            }
-        };
-
-        match wheels.left.speed {
-            WheelSpeed::Slow => {
-                resources.pwm.0.set_duty(slow);
-                resources.pwm.1.set_duty(slow);
-            }
-            WheelSpeed::Fast => {
-                resources.pwm.0.set_duty(fast);
-                resources.pwm.1.set_duty(fast);
-            }
-        };
-
-        match wheels.right.dir {
-            WheelDirection::Forward => {
-                resources.right_fwd.set_high();
-                resources.right_rev.set_low();
-            }
-            WheelDirection::Reverse => {
-                resources.right_fwd.set_low();
-                resources.right_rev.set_high();
-            }
-        };
-
-        match wheels.right.speed {
-            WheelSpeed::Slow => {
-                resources.pwm.2.set_duty(slow);
-                resources.pwm.3.set_duty(slow);
-            }
-            WheelSpeed::Fast => {
-                resources.pwm.2.set_duty(fast);
-                resources.pwm.3.set_duty(fast);
-            }
-        };
-
-        resources.tmr2.start(50.hz());
+        resources.tmr2.start(5.hz());
     }
 };
 
-fn next_move(front: FrontSensors, _bottom: BottomSensors, range: u16) -> WheelControl {
-    let mut right_obstacle = false;
-    let mut center_obstacle = false;
-    let mut left_obstacle = false;
-
-    if is_obstacle(front.sll, range) {
-        left_obstacle = true;
-    }
-
-    if is_obstacle(front.slc, range) {
-        left_obstacle = true;
-    }
-
-    if is_obstacle(front.scc, range) {
-        center_obstacle = true;
-    }
-
-    if is_obstacle(front.src, range) {
-        right_obstacle = true;
-    }
-
-    if is_obstacle(front.srr, range) {
-        right_obstacle = true;
-    }
+fn make_decision(
+    m: &mut Motion,
+    front: FrontSensors,
+    _bottom: BottomSensors,
+    range: u16,
+) -> Result<(bool, bool, bool), motion::Error> {
+    let right_obstacle = is_obstacle(front.srr, range) || is_obstacle(front.src, range);
+    let left_obstacle = is_obstacle(front.sll, range) || is_obstacle(front.slc, range);
+    let center_obstacle = is_obstacle(front.scc, range);
 
     match (left_obstacle, center_obstacle, right_obstacle) {
         (_, true, _) | (true, false, true) => {
             // center obstacle: slow rotation on spot
-            return WheelControl {
-                left: Wheel {
-                    speed: WheelSpeed::Slow,
-                    dir: WheelDirection::Reverse,
-                },
-                right: Wheel {
-                    speed: WheelSpeed::Slow,
-                    dir: WheelDirection::Forward,
-                },
-            };
+            m.rotate(Rotation::Left, Gear::Low)?;
         }
         (false, false, true) => {
             // right obstacle, move rotate counter-clockwise
-            return WheelControl {
-                left: Wheel {
-                    speed: WheelSpeed::Fast,
-                    dir: WheelDirection::Reverse,
-                },
-                right: Wheel {
-                    speed: WheelSpeed::Slow,
-                    dir: WheelDirection::Forward,
-                },
-            };
+            m.set_right_wheel(Direction::Forward, Gear::Low)?;
+            m.set_left_wheel(Direction::Reverse, Gear::Top)?;
         }
         (true, false, false) => {
             // left obstacle, move rotate clockwise
-            return WheelControl {
-                left: Wheel {
-                    speed: WheelSpeed::Slow,
-                    dir: WheelDirection::Forward,
-                },
-                right: Wheel {
-                    speed: WheelSpeed::Fast,
-                    dir: WheelDirection::Reverse,
-                },
-            };
+            m.set_right_wheel(Direction::Reverse, Gear::Top)?;
+            m.set_left_wheel(Direction::Forward, Gear::Low)?;
         }
         (false, false, false) => {
             // no obstacles, move forward
-            return WheelControl {
-                left: Wheel {
-                    speed: WheelSpeed::Fast,
-                    dir: WheelDirection::Forward,
-                },
-                right: Wheel {
-                    speed: WheelSpeed::Fast,
-                    dir: WheelDirection::Forward,
-                },
-            };
+            m.forward(Gear::Top)?;
         }
     }
+
+    Ok((left_obstacle, center_obstacle, right_obstacle))
 }
 
 fn is_obstacle(val: u16, max: u16) -> bool {
