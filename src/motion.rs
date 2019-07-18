@@ -145,23 +145,23 @@ impl Motion {
             duty: [0; 3],
         };
 
-        m.left.gc.0.disable();
-        m.left.gc.1.disable();
-
         m.left.dc.0.set_low();
         m.left.dc.1.set_low();
 
-        m.right.gc.0.disable();
-        m.right.gc.1.disable();
+        m.left.gc.0.disable();
+        m.left.gc.1.disable();
 
         m.right.dc.0.set_low();
         m.right.dc.1.set_low();
 
+        m.right.gc.0.disable();
+        m.right.gc.1.disable();
+
         let max_duty = m.right.gc.0.get_max_duty();
 
-        m.duty[0] = max_duty / 4 as u16;
-        m.duty[1] = max_duty / 2 as u16;
-        m.duty[2] = max_duty / 1 as u16;
+        m.duty[0] = 3 * max_duty / 4 as u16;
+        m.duty[1] = 2 * max_duty / 3 as u16;
+        m.duty[2] = 1 * max_duty / 2 as u16;
 
         m
     }
@@ -203,20 +203,25 @@ impl Motion {
     }
 
     pub fn set_left_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
-        self.left.gc.0.set_duty(self.duty[gear as usize]);
-        self.left.gc.1.set_duty(self.duty[gear as usize]);
-
         match dir {
             Direction::None => {
                 self.left.dc.0.set_low();
                 self.left.dc.1.set_low();
+                self.left.gc.0.disable();
+                self.left.gc.1.disable();
             }
             Direction::Forward => {
-                self.left.dc.0.set_high();
                 self.left.dc.1.set_low();
+                self.left.gc.1.disable();
+                self.left.gc.0.set_duty(self.duty[gear as usize]);
+                self.left.gc.0.enable();
+                self.left.dc.0.set_high();
             }
             Direction::Reverse => {
                 self.left.dc.0.set_low();
+                self.left.gc.0.disable();
+                self.left.gc.1.set_duty(self.duty[gear as usize]);
+                self.left.gc.1.enable();
                 self.left.dc.1.set_high();
             }
         };
@@ -225,20 +230,25 @@ impl Motion {
     }
 
     pub fn set_right_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
-        self.right.gc.0.set_duty(self.duty[gear as usize]);
-        self.right.gc.1.set_duty(self.duty[gear as usize]);
-
         match dir {
             Direction::None => {
+                self.right.gc.0.disable();
+                self.right.gc.1.disable();
                 self.right.dc.0.set_low();
                 self.right.dc.1.set_low();
             }
             Direction::Forward => {
-                self.right.dc.0.set_high();
                 self.right.dc.1.set_low();
+                self.right.gc.1.disable();
+                self.right.gc.0.set_duty(self.duty[gear as usize]);
+                self.right.gc.0.enable();
+                self.right.dc.0.set_high();
             }
             Direction::Reverse => {
                 self.right.dc.0.set_low();
+                self.right.gc.0.disable();
+                self.right.gc.1.set_duty(self.duty[gear as usize]);
+                self.right.gc.1.enable();
                 self.right.dc.1.set_high();
             }
         };
