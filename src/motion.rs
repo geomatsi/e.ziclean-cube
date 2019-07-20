@@ -159,9 +159,9 @@ impl Motion {
 
         let max_duty = m.right.gc.0.get_max_duty();
 
-        m.duty[0] = 3 * max_duty / 4 as u16;
-        m.duty[1] = 2 * max_duty / 3 as u16;
-        m.duty[2] = 1 * max_duty / 2 as u16;
+        m.duty[0] = (3 * u32::from(max_duty) / 4) as u16;
+        m.duty[1] = (2 * u32::from(max_duty) / 3) as u16;
+        m.duty[2] = (1 * u32::from(max_duty) / 2) as u16;
 
         m
     }
