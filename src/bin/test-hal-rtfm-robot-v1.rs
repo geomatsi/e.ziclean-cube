@@ -8,62 +8,31 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m as cm;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate cortex_m_rt as rt;
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate rtfm;
 use rtfm::app;
 
-extern crate stm32f1xx_hal as hal;
 use hal::adc;
-use hal::gpio;
 use hal::prelude::*;
 use hal::stm32;
 use hal::timer;
+use stm32f1xx_hal as hal;
 
-use eziclean::motion;
-use eziclean::motion::{Direction, Gear, Motion, Rotation};
-
-/* */
-
-pub struct FrontSensors {
-    pub sll: u16,
-    pub slc: u16,
-    pub scc: u16,
-    pub src: u16,
-    pub srr: u16,
-}
-
-pub struct BottomSensors {
-    pub sl: u16,
-    pub sc: u16,
-    pub sr: u16,
-}
+use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
+use eziclean::motion::{Direction, Error, Gear, Motion, Rotation};
 
 /* */
 
-#[app(device = hal::stm32)]
+#[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
-    // basic mcu resources
+    // basic hardware resources
     static mut tmr2: timer::Timer<stm32::TIM2> = ();
-    static mut adc1: adc::Adc<stm32::ADC1> = ();
     static mut itm: hal::stm32::ITM = ();
-
-    // front IR sensors
-    static mut front_left_90: gpio::gpioc::PC0<gpio::Analog> = ();
-    static mut front_left_45: gpio::gpioa::PA4<gpio::Analog> = ();
-    static mut front_center: gpio::gpioa::PA6<gpio::Analog> = ();
-    static mut front_right_45: gpio::gpioc::PC5<gpio::Analog> = ();
-    static mut front_right_90: gpio::gpiob::PB0<gpio::Analog> = ();
-
-    // bottom IR sensors
-    static mut bottom_left: gpio::gpioc::PC1<gpio::Analog> = ();
-    static mut bottom_center: gpio::gpioa::PA7<gpio::Analog> = ();
-    static mut bottom_right: gpio::gpiob::PB1<gpio::Analog> = ();
-
+    // analog readings
+    static mut analog: Analog = ();
     // Motion control
     static mut drive: Motion = ();
 
@@ -91,39 +60,7 @@ const APP: () = {
         let mut gpiod = device.GPIOD.split(&mut rcc.apb2);
         let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
 
-        let mut afio = device.AFIO.constrain(&mut rcc.apb2);
-
-        // PA0-PA7 analog input: ADC_IN0 .. ADC_IN7
-        let _ch0 = gpioa.pa0.into_analog(&mut gpioa.crl);
-        let _ch1 = gpioa.pa1.into_analog(&mut gpioa.crl);
-        let _ch2 = gpioa.pa2.into_analog(&mut gpioa.crl);
-        let _ch3 = gpioa.pa3.into_analog(&mut gpioa.crl);
-        let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
-        let _ch5 = gpioa.pa5.into_analog(&mut gpioa.crl);
-        let ch6 = gpioa.pa6.into_analog(&mut gpioa.crl);
-        let ch7 = gpioa.pa7.into_analog(&mut gpioa.crl);
-
-        // PB0-PB1 analog input: ADC_IN8 .. ADC_IN9
-        let ch8 = gpiob.pb0.into_analog(&mut gpiob.crl);
-        let ch9 = gpiob.pb1.into_analog(&mut gpiob.crl);
-
-        // PC0-PC5 analog input: ADC_IN10 .. ADC_IN15
-        let ch10 = gpioc.pc0.into_analog(&mut gpioc.crl);
-        let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
-        let _ch12 = gpioc.pc2.into_analog(&mut gpioc.crl);
-        let _ch13 = gpioc.pc3.into_analog(&mut gpioc.crl);
-        let _ch14 = gpioc.pc4.into_analog(&mut gpioc.crl);
-        let ch15 = gpioc.pc5.into_analog(&mut gpioc.crl);
-
-        // PC7: GPIO push-pull output: enable IR LEDs of all the front sensors
-        let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-        front_leds.set_high();
-
-        // PD9: push-pull output: enable IR LEDs of all 3 floor sensors
-        let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-        bottom_leds.set_high();
-
-        // Motion controls
+        /* Motion controls */
 
         let l_rev = gpiod.pd2.into_open_drain_output(&mut gpiod.crl);
         let l_fwd = gpiod.pd5.into_open_drain_output(&mut gpiod.crl);
@@ -135,6 +72,7 @@ const APP: () = {
         let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
+        let mut afio = device.AFIO.constrain(&mut rcc.apb2);
         let pwm = device.TIM4.pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
@@ -151,30 +89,48 @@ const APP: () = {
         );
         m.stop().unwrap();
 
-        // ADC setup
-        let mut a1 = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
-        a1.set_sample_time(adc::AdcSampleTime::T_13);
+        /* IR LEDs for obstacle sensors */
 
-        // configure and start TIM2 periodic timer
+        // PC7: GPIO push-pull output: enable IR LEDs of all the front sensors
+        let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
+        front_leds.set_high();
+
+        // PD9: push-pull output: enable IR LEDs of all 3 floor sensors
+        let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
+        bottom_leds.set_high();
+
+        /* Analog measurements */
+
+        // ADC setup
+        let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
+        let mut a = Analog::init(adc, adc::AdcSampleTime::T_13);
+
+        // front sensor channels
+        let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
+        let ch6 = gpioa.pa6.into_analog(&mut gpioa.crl);
+        let ch8 = gpiob.pb0.into_analog(&mut gpiob.crl);
+        let ch10 = gpioc.pc0.into_analog(&mut gpioc.crl);
+        let ch15 = gpioc.pc5.into_analog(&mut gpioc.crl);
+
+        a.init_front_sensors(ch10, ch4, ch6, ch15, ch8);
+
+        // bottom sensor channels
+        let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
+        let ch7 = gpioa.pa7.into_analog(&mut gpioa.crl);
+        let ch9 = gpiob.pb1.into_analog(&mut gpiob.crl);
+
+        a.init_bottom_sensors(ch11, ch7, ch9);
+
+        /* configure and start TIM2 periodic timer */
+
         let mut t2 = timer::Timer::tim2(device.TIM2, 50.hz(), clocks, &mut rcc.apb1);
         t2.listen(timer::Event::Update);
 
-        // init late resources
+        /* init late resources */
 
         tmr2 = t2;
-        adc1 = a1;
         itm = core.ITM;
-
-        front_left_90 = ch10;
-        front_left_45 = ch4;
-        front_center = ch6;
-        front_right_45 = ch15;
-        front_right_90 = ch8;
-
-        bottom_left = ch11;
-        bottom_center = ch7;
-        bottom_right = ch9;
-
+        analog = a;
         drive = m;
     }
 
@@ -187,46 +143,27 @@ const APP: () = {
 
     #[interrupt(resources = [
                 // hardware units
-                tmr2, adc1, itm,
-                // front IR sensors
-                front_left_90,
-                front_left_45,
-                front_center,
-                front_right_45,
-                front_right_90,
-                // bottom IR sensors
-                bottom_left,
-                bottom_center,
-                bottom_right,
+                tmr2, itm,
+                // analog readings
+                analog,
                 // motion control
                 drive
     ])]
     fn TIM2() {
         let dbg = &mut resources.itm.stim[0];
-        let max_range: u16 = resources.adc1.max_sample();
+        let max_range: u16 = resources.analog.get_max_sample();
 
-        let front = FrontSensors {
-            sll: resources.adc1.read(resources.front_left_90).unwrap(),
-            slc: resources.adc1.read(resources.front_left_45).unwrap(),
-            scc: resources.adc1.read(resources.front_center).unwrap(),
-            src: resources.adc1.read(resources.front_right_45).unwrap(),
-            srr: resources.adc1.read(resources.front_right_90).unwrap(),
-        };
-
-        let bottom = BottomSensors {
-            sl: resources.adc1.read(resources.bottom_left).unwrap(),
-            sc: resources.adc1.read(resources.bottom_center).unwrap(),
-            sr: resources.adc1.read(resources.bottom_right).unwrap(),
-        };
+        let front = resources.analog.get_front_sensors().unwrap();
+        let bottom = resources.analog.get_bottom_sensors().unwrap();
 
         iprintln!(
             dbg,
             "raw front sensors: ({},{},{},{},{})",
-            front.sll,
-            front.slc,
-            front.scc,
-            front.src,
-            front.srr
+            front.fll,
+            front.flc,
+            front.fcc,
+            front.frc,
+            front.frr
         );
 
         let (dl, dc, dr) = make_decision(resources.drive, front, bottom, max_range).unwrap();
@@ -238,13 +175,13 @@ const APP: () = {
 
 fn make_decision(
     m: &mut Motion,
-    front: FrontSensors,
-    _bottom: BottomSensors,
+    front: FrontSensorsData,
+    _bottom: BottomSensorsData,
     range: u16,
-) -> Result<(bool, bool, bool), motion::Error> {
-    let right_obstacle = is_obstacle(front.srr, range) || is_obstacle(front.src, range);
-    let left_obstacle = is_obstacle(front.sll, range) || is_obstacle(front.slc, range);
-    let center_obstacle = is_obstacle(front.scc, range);
+) -> Result<(bool, bool, bool), Error> {
+    let right_obstacle = is_obstacle(front.frr, range) || is_obstacle(front.frc, range);
+    let left_obstacle = is_obstacle(front.fll, range) || is_obstacle(front.flc, range);
+    let center_obstacle = is_obstacle(front.fcc, range);
 
     match (left_obstacle, center_obstacle, right_obstacle) {
         (_, true, _) | (true, false, true) => {
