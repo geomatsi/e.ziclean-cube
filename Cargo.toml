@@ -107,6 +107,11 @@ path = "examples/hal/example-hal-i2c-disp-test1.rs"
 required-features = [ "hal" ]
 
 [[example]]
+name = "example-hal-i2c-disp-test2"
+path = "examples/hal/example-hal-i2c-disp-test2.rs"
+required-features = [ "hal" ]
+
+[[example]]
 name = "example-hal-ir-rc-test1"
 path = "examples/hal/example-hal-ir-rc-test1.rs"
 required-features = [ "hal" ]
