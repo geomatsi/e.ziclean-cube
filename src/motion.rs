@@ -123,6 +123,8 @@ pub struct Motion {
     /// Left wheel state
     left: LeftWheel,
     /// max pwm duty
+    max_duty: u16,
+    /// gear pwm duty options
     duty: [u16; 3],
 }
 
@@ -143,25 +145,35 @@ impl Motion {
                 dc: (rcf, rcr),
             },
             duty: [0; 3],
+            max_duty: 0,
         };
+
+        let max_duty = m.right.gc.0.get_max_duty();
 
         m.left.dc.0.set_low();
         m.left.dc.1.set_low();
 
-        m.left.gc.0.disable();
-        m.left.gc.1.disable();
+        // NB: max duty corresponds to lowest gear
+        m.left.gc.0.set_duty(max_duty);
+        m.left.gc.1.set_duty(max_duty);
+
+        m.left.gc.0.enable();
+        m.left.gc.1.enable();
 
         m.right.dc.0.set_low();
         m.right.dc.1.set_low();
 
-        m.right.gc.0.disable();
-        m.right.gc.1.disable();
+        // NB: max duty corresponds to lowest gear
+        m.right.gc.0.set_duty(max_duty);
+        m.right.gc.1.set_duty(max_duty);
 
-        let max_duty = m.right.gc.0.get_max_duty();
+        m.right.gc.0.enable();
+        m.right.gc.1.enable();
 
         m.duty[0] = (3 * u32::from(max_duty) / 4) as u16;
         m.duty[1] = (2 * u32::from(max_duty) / 3) as u16;
         m.duty[2] = (1 * u32::from(max_duty) / 2) as u16;
+        m.max_duty = max_duty;
 
         m
     }
@@ -205,23 +217,21 @@ impl Motion {
     pub fn set_left_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
         match dir {
             Direction::None => {
+                self.left.gc.0.set_duty(self.max_duty);
                 self.left.dc.0.set_low();
+                self.left.gc.1.set_duty(self.max_duty);
                 self.left.dc.1.set_low();
-                self.left.gc.0.disable();
-                self.left.gc.1.disable();
             }
             Direction::Forward => {
-                self.left.dc.1.set_low();
-                self.left.gc.1.disable();
                 self.left.gc.0.set_duty(self.duty[gear as usize]);
-                self.left.gc.0.enable();
                 self.left.dc.0.set_high();
+                self.left.gc.1.set_duty(self.max_duty);
+                self.left.dc.1.set_low();
             }
             Direction::Reverse => {
+                self.left.gc.0.set_duty(self.max_duty);
                 self.left.dc.0.set_low();
-                self.left.gc.0.disable();
                 self.left.gc.1.set_duty(self.duty[gear as usize]);
-                self.left.gc.1.enable();
                 self.left.dc.1.set_high();
             }
         };
@@ -232,23 +242,21 @@ impl Motion {
     pub fn set_right_wheel(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
         match dir {
             Direction::None => {
-                self.right.gc.0.disable();
-                self.right.gc.1.disable();
+                self.right.gc.0.set_duty(self.max_duty);
                 self.right.dc.0.set_low();
+                self.right.gc.1.set_duty(self.max_duty);
                 self.right.dc.1.set_low();
             }
             Direction::Forward => {
-                self.right.dc.1.set_low();
-                self.right.gc.1.disable();
                 self.right.gc.0.set_duty(self.duty[gear as usize]);
-                self.right.gc.0.enable();
                 self.right.dc.0.set_high();
+                self.right.gc.1.set_duty(self.max_duty);
+                self.right.dc.1.set_low();
             }
             Direction::Reverse => {
+                self.right.gc.0.set_duty(self.max_duty);
                 self.right.dc.0.set_low();
-                self.right.gc.0.disable();
                 self.right.gc.1.set_duty(self.duty[gear as usize]);
-                self.right.gc.1.enable();
                 self.right.dc.1.set_high();
             }
         };
