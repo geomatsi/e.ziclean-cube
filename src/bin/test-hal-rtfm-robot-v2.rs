@@ -12,14 +12,37 @@ use panic_itm as _;
 use rtfm::app;
 
 use hal::adc;
+use hal::gpio;
+use hal::gpio::{OpenDrain, Output};
 use hal::prelude::*;
 use hal::stm32;
 use hal::timer;
 use stm32f1xx_hal as hal;
 
+use bitbang_hal;
+
 use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
 use eziclean::display::Display;
 use eziclean::motion::{Direction, Gear, Motion, Rotation};
+
+use kxcj9::ic::G8Device;
+use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
+use kxcj9::{InterruptPinLatching, InterruptPinPolarity};
+use kxcj9::{WakeUpInterruptConfig, WakeUpOutputDataRate, WakeUpTriggerMotion};
+
+use nb;
+use shared_bus;
+
+type TmrType = timer::Timer<stm32::TIM2>;
+type TmrProxyType = shared_bus::proxy::BusProxy<
+    'static,
+    cm::interrupt::Mutex<core::cell::RefCell<TmrType>>,
+    TmrType,
+>;
+
+static mut TMR_BUS: Option<
+    shared_bus::BusManager<cm::interrupt::Mutex<core::cell::RefCell<TmrType>>, TmrType>,
+> = None;
 
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
@@ -31,7 +54,16 @@ const APP: () = {
     // Motion control
     static mut drive: Motion = ();
     // Display
-    static mut screen: Display<timer::Timer<stm32::TIM2>> = ();
+    static mut screen: Display<TmrProxyType> = ();
+    // Accelerometer
+    static mut accel: Kxcj9<
+        bitbang_hal::i2c::I2cBB<
+            gpio::gpioe::PE7<Output<OpenDrain>>,
+            gpio::gpiob::PB2<Output<OpenDrain>>,
+            TmrProxyType,
+        >,
+        G8Device,
+    > = ();
 
     #[init]
     fn init() {
@@ -58,7 +90,31 @@ const APP: () = {
 
         let mut afio = device.AFIO.constrain(&mut rcc.apb2);
 
-        /* Motion controls */
+        /*
+         * Enable shared access to TMR2 using shared_bus crate
+         *
+         */
+
+        // trick to workaround rtfm late init of static resources:
+        // tmr_bus needs to be 'static
+        let tmr_bus = {
+            let timer = timer::Timer::tim2(device.TIM2, 200.khz(), clocks, &mut rcc.apb1);
+            let bus = shared_bus::BusManager::<
+                cm::interrupt::Mutex<core::cell::RefCell<TmrType>>,
+                TmrType,
+            >::new(timer);
+
+            unsafe {
+                TMR_BUS = Some(bus);
+                // This reference is now &'static
+                &TMR_BUS.as_ref().unwrap()
+            }
+        };
+
+        /*
+         * Motion controls
+         *
+         */
 
         let l_rev = gpiod.pd2.into_open_drain_output(&mut gpiod.crl);
         let l_fwd = gpiod.pd5.into_open_drain_output(&mut gpiod.crl);
@@ -87,17 +143,25 @@ const APP: () = {
 
         m.stop().unwrap();
 
-        /* IR LEDs for obstacle sensors */
+        /*
+         * IR LEDs for obstacle sensors
+         *
+         */
 
         // PC7: enable IR LEDs of all the front sensors
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-        front_leds.set_high();
+        // FIXME: disable for now, need to enable only for measurements
+        front_leds.set_low();
 
         // PD9: enable IR LEDs of all 3 floor sensors
         let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-        bottom_leds.set_high();
+        // FIXME: disable for now, need to enable only for measurements
+        bottom_leds.set_low();
 
-        /* Analog measurements */
+        /*
+         * Analog measurements
+         *
+         */
 
         let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
         let mut a = Analog::init(adc, adc::AdcSampleTime::T_13);
@@ -118,17 +182,22 @@ const APP: () = {
 
         a.init_bottom_sensors(ch11, ch7, ch9);
 
-        /* Display */
+        /*
+         * Display
+         *
+         */
 
         let tmp = gpioe.pe15.into_floating_input(&mut gpioe.crh);
         let clk = gpioc.pc8.into_push_pull_output(&mut gpioc.crh);
         let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
         let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
-        let timer = timer::Timer::tim2(device.TIM2, 200.khz(), clocks, &mut rcc.apb1);
 
-        let d = Display::init(stb, dio, clk, tmp, timer);
+        let d = Display::init(stb, dio, clk, tmp, tmr_bus.acquire());
 
-        /* Sensor button */
+        /*
+         * Sensor button
+         *
+         */
 
         // PD1: one-channel touch sensor
         gpiod.pd1.into_floating_input(&mut gpiod.crl);
@@ -142,11 +211,15 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr1().set_bit());
         device.EXTI.ftsr.modify(|_, w| w.tr1().set_bit());
 
-        /* Wheel encoders */
+        /*
+         * Wheel encoders
+         *
+         */
 
         // PD13: GPIO open-drain output: IR LEDs for both main motors encoders, active low
         let mut pd13 = gpiod.pd13.into_open_drain_output(&mut gpiod.crh);
-        pd13.set_low();
+        // FIXME: disable for now (active low), need to enable only for measurements ???
+        pd13.set_high();
 
         // PC12, PE8: IR diodes for both main motors encoders
         gpioc.pc12.into_floating_input(&mut gpioc.crh);
@@ -169,7 +242,10 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr12().set_bit());
         device.EXTI.rtsr.modify(|_, w| w.tr12().set_bit());
 
-        /* Charger plug */
+        /*
+         * Wheel encoders
+         *
+         */
 
         gpioe.pe4.into_floating_input(&mut gpioe.crl);
 
@@ -183,27 +259,88 @@ const APP: () = {
         device.EXTI.rtsr.modify(|_, w| w.tr4().set_bit());
         device.EXTI.ftsr.modify(|_, w| w.tr4().set_bit());
 
-        /* init late resources */
+        /*
+         * Accelerometer
+         *
+         */
+
+        let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
+        let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
+        let _irq = gpioe.pe9.into_floating_input(&mut gpioe.crh);
+
+        // select PE9 as source input for line EXTI9
+        afio.exticr3
+            .exticr3()
+            .modify(|_, w| unsafe { w.exti9().bits(0b0100) });
+
+        // enable EXTI9 and configure interrupt on rising edge
+        device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
+
+        let i2c = bitbang_hal::i2c::I2cBB::new(scl, sda, tmr_bus.acquire());
+
+        let address = SlaveAddr::Alternative(true);
+        let mut acc = Kxcj9::new_kxcj9_1008(i2c, address);
+
+        /* FIXME: ERR(NoAck) ???
+        nb::block!(acc.reset()).ok();
+
+        acc.enable().unwrap();
+        acc.set_scale(GScale8::G2).unwrap();
+        acc.set_resolution(Resolution::Low).unwrap();
+
+        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
+            .unwrap();
+        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
+            .unwrap();
+        acc.enable_interrupt_pin().unwrap();
+
+        let config = WakeUpInterruptConfig {
+            trigger_motion: WakeUpTriggerMotion {
+                x_negative: true,
+                x_positive: true,
+                y_negative: true,
+                y_positive: true,
+                z_negative: true,
+                z_positive: true,
+            },
+            data_rate: WakeUpOutputDataRate::Hz25,
+            fault_count: 1,
+            threshold: 0.5,
+        };
+
+        acc.enable_wake_up_interrupt(config).unwrap();
+        */
+
+        /*
+         * init late resources
+         *
+         */
 
         itm = core.ITM;
         exti = device.EXTI;
         analog = a;
         drive = m;
         screen = d;
+        accel = acc;
     }
 
-    #[idle()]
+    #[idle(resources = [itm])]
     fn idle() -> ! {
         loop {
             cm::asm::wfi();
+            resources.itm.lock(|d| {
+                iprintln!(&mut d.stim[0], ">>> IDLE");
+            });
         }
     }
 
-    #[interrupt(resources = [exti, itm])]
+    #[interrupt(resources = [exti, itm, screen])]
     fn EXTI1() {
         let d = &mut resources.itm.stim[0];
         iprintln!(d, ">>> EXTI1: BUTTON");
 
+        resources.screen.print4([1, 1, 1, 1]).unwrap();
         resources.exti.pr.modify(|_, w| w.pr1().set_bit());
         // TODO: queue button Event
     }
@@ -217,7 +354,7 @@ const APP: () = {
         // TODO: queue charger Event
     }
 
-    #[interrupt(resources = [exti, itm])]
+    #[interrupt(resources = [exti, itm, accel])]
     fn EXTI9_5() {
         let d = &mut resources.itm.stim[0];
         let r = resources.exti.pr.read();
@@ -226,6 +363,14 @@ const APP: () = {
             iprintln!(d, ">>> EXTI9_5: RENC");
             resources.exti.pr.modify(|_, w| w.pr8().set_bit());
             // TODO: collect stats to get rotation speed
+        }
+
+        if r.pr9().bit_is_set() {
+            let info = resources.accel.read_interrupt_info().unwrap();
+            iprintln!(d, ">>> EXTI9_5: ACCEL {:?}", info);
+            resources.accel.clear_interrupts().unwrap();
+            resources.exti.pr.modify(|_, w| w.pr9().set_bit());
+            // TODO: send accelerometer event
         }
     }
 
