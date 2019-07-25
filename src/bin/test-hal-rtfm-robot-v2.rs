@@ -282,7 +282,6 @@ const APP: () = {
         let address = SlaveAddr::Alternative(true);
         let mut acc = Kxcj9::new_kxcj9_1008(i2c, address);
 
-        /* FIXME: ERR(NoAck) ???
         nb::block!(acc.reset()).ok();
 
         acc.enable().unwrap();
@@ -310,7 +309,6 @@ const APP: () = {
         };
 
         acc.enable_wake_up_interrupt(config).unwrap();
-        */
 
         /*
          * init late resources
