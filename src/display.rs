@@ -1,27 +1,20 @@
 #![allow(deprecated)]
 
 use embedded_hal::digital::v1::OutputPin;
-use embedded_hal::spi::FullDuplex;
-use embedded_hal::timer::{CountDown, Periodic};
+use embedded_hal::spi;
 
 use nb::block;
 
 use super::*;
 
-//
-
-type STB = hal::gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
-type DIO = hal::gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
-type CLK = hal::gpio::gpioc::PC8<hal::gpio::Output<hal::gpio::PushPull>>;
-type TMP = hal::gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
-
 /// Display
-pub struct Display<TMR>
+pub struct Display<SPI, STB>
 where
-    TMR: CountDown + Periodic,
+    SPI: spi::FullDuplex<u8>,
+    STB: OutputPin,
 {
     /// spi interface
-    spi: bb::spi::SPI<TMP, DIO, CLK, TMR>,
+    spi: SPI,
     /// strob (chip select)
     stb: STB,
     /// display matrix data
@@ -37,16 +30,16 @@ pub enum Error {
     InvalidPosition,
     /// Invalid symbol: should be 0..9
     InvalidSymbol,
+    /// Number is too large, should be less than 9999
+    InvalidNumber,
 }
 
-impl<TMR> Display<TMR>
+impl<SPI, STB> Display<SPI, STB>
 where
-    TMR: CountDown + Periodic,
+    SPI: spi::FullDuplex<u8>,
+    STB: OutputPin,
 {
-    pub fn init(stb: STB, dio: DIO, clk: CLK, tmp: TMP, tmr: TMR) -> Self {
-        let mut spi = bitbang_hal::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, tmr);
-        spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
-
+    pub fn init(spi: SPI, stb: STB) -> Self {
         // e.ziclean display connected to TM1668 so that address byte varies
         // while data byte is fixes for each grid
         let addr = [0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc];
@@ -126,14 +119,17 @@ where
 
     fn write(&mut self, data: u8) {
         self.stb.set_low();
-        block!(self.spi.send(data)).unwrap();
+        // FIXME: error handling
+        block!(self.spi.send(data)).ok();
         self.stb.set_high();
     }
 
     fn write2(&mut self, data1: u8, data2: u8) {
         self.stb.set_low();
-        block!(self.spi.send(data1)).unwrap();
-        block!(self.spi.send(data2)).unwrap();
+        // FIXME: error handling
+        block!(self.spi.send(data1)).ok();
+        // FIXME: error handling
+        block!(self.spi.send(data2)).ok();
         self.stb.set_high();
     }
 
@@ -199,6 +195,31 @@ where
 
             if self.addr[i] == 0x06 && colon {
                 data |= 2;
+            }
+
+            self.write2(0b1100_0000 | self.addr[i], data);
+        }
+
+        Ok(())
+    }
+
+    pub fn print_num(&mut self, num: u16) -> Result<(), Error> {
+        if num > 9999 {
+            return Err(Error::InvalidNumber);
+        }
+
+        let mut n = [0; 4];
+
+        n[0] = num / 1000;
+        n[1] = (num - n[0] * 1000) / 100;
+        n[2] = (num - n[0] * 1000 - n[1] * 100) / 10;
+        n[3] = num - n[0] * 1000 - n[1] * 100 - n[2] * 10;
+
+        for i in 0..7 {
+            let mut data = 0;
+
+            for (k, v) in n.iter().enumerate() {
+                data |= self.grid[k] * self.sym[k][*v as usize][i];
             }
 
             self.write2(0b1100_0000 | self.addr[i], data);
