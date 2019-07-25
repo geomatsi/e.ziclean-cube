@@ -19,7 +19,7 @@ use hal::stm32;
 use hal::timer;
 use stm32f1xx_hal as hal;
 
-use bitbang_hal;
+use bitbang_hal as bb;
 
 use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
 use eziclean::display::Display;
@@ -33,6 +33,16 @@ use kxcj9::{WakeUpInterruptConfig, WakeUpOutputDataRate, WakeUpTriggerMotion};
 use nb;
 use shared_bus;
 
+/* Types */
+
+type SpiStbType = gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
+type SpiDioType = gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
+type SpiClkType = gpio::gpioc::PC8<hal::gpio::Output<hal::gpio::PushPull>>;
+type SpiTmpType = gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
+
+type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
+type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
+
 type TmrType = timer::Timer<stm32::TIM2>;
 type TmrProxyType = shared_bus::proxy::BusProxy<
     'static,
@@ -40,9 +50,13 @@ type TmrProxyType = shared_bus::proxy::BusProxy<
     TmrType,
 >;
 
+/* */
+
 static mut TMR_BUS: Option<
     shared_bus::BusManager<cm::interrupt::Mutex<core::cell::RefCell<TmrType>>, TmrType>,
 > = None;
+
+/* */
 
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
@@ -54,16 +68,9 @@ const APP: () = {
     // Motion control
     static mut drive: Motion = ();
     // Display
-    static mut screen: Display<TmrProxyType> = ();
+    static mut screen: Display<bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, TmrProxyType>, SpiStbType> = ();
     // Accelerometer
-    static mut accel: Kxcj9<
-        bitbang_hal::i2c::I2cBB<
-            gpio::gpioe::PE7<Output<OpenDrain>>,
-            gpio::gpiob::PB2<Output<OpenDrain>>,
-            TmrProxyType,
-        >,
-        G8Device,
-    > = ();
+    static mut accel: Kxcj9<bb::i2c::I2cBB<I2cSclType, I2cSdaType, TmrProxyType>, G8Device> = ();
 
     #[init]
     fn init() {
@@ -192,7 +199,10 @@ const APP: () = {
         let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
         let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
-        let d = Display::init(stb, dio, clk, tmp, tmr_bus.acquire());
+        let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, tmr_bus.acquire());
+        spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
+
+        let d = Display::init(spi, stb);
 
         /*
          * Sensor button
@@ -277,21 +287,18 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
         device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
 
-        let i2c = bitbang_hal::i2c::I2cBB::new(scl, sda, tmr_bus.acquire());
-
+        let i2c = bb::i2c::I2cBB::new(scl, sda, tmr_bus.acquire());
         let address = SlaveAddr::Alternative(true);
+
         let mut acc = Kxcj9::new_kxcj9_1008(i2c, address);
 
         nb::block!(acc.reset()).ok();
-
         acc.enable().unwrap();
         acc.set_scale(GScale8::G2).unwrap();
         acc.set_resolution(Resolution::Low).unwrap();
 
-        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
-            .unwrap();
-        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
-            .unwrap();
+        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh).unwrap();
+        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching).unwrap();
         acc.enable_interrupt_pin().unwrap();
 
         let config = WakeUpInterruptConfig {
@@ -323,13 +330,17 @@ const APP: () = {
         accel = acc;
     }
 
-    #[idle(resources = [itm])]
+    #[idle(resources = [itm, screen])]
     fn idle() -> ! {
+        let mut n: u16 = 0;
+
         loop {
-            cm::asm::wfi();
-            resources.itm.lock(|d| {
-                iprintln!(&mut d.stim[0], ">>> IDLE");
+            resources.screen.lock(|d| {
+                d.print_num(n).unwrap();
             });
+
+            n = if n < 9999 { n + 1 } else { 0 };
+            cm::asm::wfi();
         }
     }
 
