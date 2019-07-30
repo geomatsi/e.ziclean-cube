@@ -68,7 +68,10 @@ const APP: () = {
     // Motion control
     static mut drive: Motion = ();
     // Display
-    static mut screen: Display<bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, TmrProxyType>, SpiStbType> = ();
+    static mut screen: Display<
+        bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, TmrProxyType>,
+        SpiStbType,
+    > = ();
     // Accelerometer
     static mut accel: Kxcj9<bb::i2c::I2cBB<I2cSclType, I2cSdaType, TmrProxyType>, G8Device> = ();
 
@@ -151,21 +154,6 @@ const APP: () = {
         m.stop().unwrap();
 
         /*
-         * IR LEDs for obstacle sensors
-         *
-         */
-
-        // PC7: enable IR LEDs of all the front sensors
-        let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-        // FIXME: disable for now, need to enable only for measurements
-        front_leds.set_low();
-
-        // PD9: enable IR LEDs of all 3 floor sensors
-        let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-        // FIXME: disable for now, need to enable only for measurements
-        bottom_leds.set_low();
-
-        /*
          * Analog measurements
          *
          */
@@ -173,21 +161,29 @@ const APP: () = {
         let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
         let mut a = Analog::init(adc, adc::AdcSampleTime::T_13);
 
-        // front sensor channels
+        // front sensors LEDs
+        let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
+        front_leds.set_low();
+
+        // front sensors channels
         let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
         let ch6 = gpioa.pa6.into_analog(&mut gpioa.crl);
         let ch8 = gpiob.pb0.into_analog(&mut gpiob.crl);
         let ch10 = gpioc.pc0.into_analog(&mut gpioc.crl);
         let ch15 = gpioc.pc5.into_analog(&mut gpioc.crl);
 
-        a.init_front_sensors(ch10, ch4, ch6, ch15, ch8);
+        a.init_front_sensors(front_leds, ch10, ch4, ch6, ch15, ch8);
+
+        // bottom sensors LEDs
+        let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
+        bottom_leds.set_low();
 
         // bottom sensor channels
         let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
         let ch7 = gpioa.pa7.into_analog(&mut gpioa.crl);
         let ch9 = gpiob.pb1.into_analog(&mut gpiob.crl);
 
-        a.init_bottom_sensors(ch11, ch7, ch9);
+        a.init_bottom_sensors(bottom_leds, ch11, ch7, ch9);
 
         /*
          * Display
@@ -297,8 +293,10 @@ const APP: () = {
         acc.set_scale(GScale8::G2).unwrap();
         acc.set_resolution(Resolution::Low).unwrap();
 
-        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh).unwrap();
-        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching).unwrap();
+        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
+            .unwrap();
+        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
+            .unwrap();
         acc.enable_interrupt_pin().unwrap();
 
         let config = WakeUpInterruptConfig {

@@ -1,11 +1,15 @@
 #![allow(deprecated)]
 
 use embedded_hal::adc::OneShot;
+use embedded_hal::digital::v1::OutputPin;
 
 use super::*;
 
 // ADC1
 type ADC = hal::adc::Adc<hal::stm32::ADC1>;
+
+// front LED type
+type FLD = hal::gpio::gpioc::PC7<hal::gpio::Output<hal::gpio::PushPull>>;
 
 // front IR sensor types
 type FLL = hal::gpio::gpioc::PC0<hal::gpio::Analog>;
@@ -13,6 +17,9 @@ type FLC = hal::gpio::gpioa::PA4<hal::gpio::Analog>;
 type FCC = hal::gpio::gpioa::PA6<hal::gpio::Analog>;
 type FRC = hal::gpio::gpioc::PC5<hal::gpio::Analog>;
 type FRR = hal::gpio::gpiob::PB0<hal::gpio::Analog>;
+
+// bottom LED type
+type BLD = hal::gpio::gpiod::PD9<hal::gpio::Output<hal::gpio::PushPull>>;
 
 // bottom IR sensor types
 type BL = hal::gpio::gpioc::PC1<hal::gpio::Analog>;
@@ -31,6 +38,7 @@ type PumpCurrent = hal::gpio::gpioc::PC3<hal::gpio::Analog>;
 
 /// Front sensors
 struct FrontSensors {
+    led: FLD,
     fll: FLL,
     flc: FLC,
     fcc: FCC,
@@ -50,6 +58,7 @@ pub struct FrontSensorsData {
 
 /// Bottom sensors
 struct BottomSensors {
+    led: BLD,
     bl: BL,
     bc: BC,
     br: BR,
@@ -133,8 +142,17 @@ impl Analog {
         self.adc.max_sample()
     }
 
-    pub fn init_front_sensors(&mut self, fll: FLL, flc: FLC, fcc: FCC, frc: FRC, frr: FRR) {
+    pub fn init_front_sensors(
+        &mut self,
+        led: FLD,
+        fll: FLL,
+        flc: FLC,
+        fcc: FCC,
+        frc: FRC,
+        frr: FRR,
+    ) {
         self.front = Some(FrontSensors {
+            led,
             fll,
             flc,
             fcc,
@@ -145,29 +163,39 @@ impl Analog {
 
     pub fn get_front_sensors(&mut self) -> Result<FrontSensorsData, Error> {
         if let Some(ref mut f) = self.front {
-            Ok(FrontSensorsData {
+            f.led.set_high();
+
+            let data = FrontSensorsData {
                 fll: self.adc.read(&mut f.fll).unwrap(),
                 flc: self.adc.read(&mut f.flc).unwrap(),
                 fcc: self.adc.read(&mut f.fcc).unwrap(),
                 frc: self.adc.read(&mut f.frc).unwrap(),
                 frr: self.adc.read(&mut f.frr).unwrap(),
-            })
+            };
+
+            f.led.set_low();
+            Ok(data)
         } else {
             Err(Error::Uninitialized)
         }
     }
 
-    pub fn init_bottom_sensors(&mut self, bl: BL, bc: BC, br: BR) {
-        self.bottom = Some(BottomSensors { bl, bc, br });
+    pub fn init_bottom_sensors(&mut self, led: BLD, bl: BL, bc: BC, br: BR) {
+        self.bottom = Some(BottomSensors { led, bl, bc, br });
     }
 
     pub fn get_bottom_sensors(&mut self) -> Result<BottomSensorsData, Error> {
         if let Some(ref mut b) = self.bottom {
-            Ok(BottomSensorsData {
+            b.led.set_high();
+
+            let data = BottomSensorsData {
                 bl: self.adc.read(&mut b.bl).unwrap(),
                 bc: self.adc.read(&mut b.bc).unwrap(),
                 br: self.adc.read(&mut b.br).unwrap(),
-            })
+            };
+
+            b.led.set_low();
+            Ok(data)
         } else {
             Err(Error::Uninitialized)
         }
