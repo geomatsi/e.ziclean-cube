@@ -1,6 +1,4 @@
-#![allow(deprecated)]
-
-use embedded_hal::digital::v1::OutputPin;
+use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::spi;
 
 use nb::block;
@@ -32,6 +30,8 @@ pub enum Error {
     InvalidSymbol,
     /// Number is too large, should be less than 9999
     InvalidNumber,
+    /// Hardware failure
+    HardwareError,
 }
 
 impl<SPI, STB> Display<SPI, STB>
@@ -106,37 +106,41 @@ where
         };
 
         // display mode setting: 7 grids, 11 segments
-        disp.write(0b0000_0011);
+        disp.write(0b0000_0011).ok();
 
         // data setting: normal mode, fixed addr, write data to display
-        disp.write(0b0100_0100);
+        disp.write(0b0100_0100).ok();
 
         // display control: display ON, PWM 13/16
-        disp.write(0b1000_1010);
+        disp.write(0b1000_1010).ok();
 
         disp
     }
 
-    fn write(&mut self, data: u8) {
-        self.stb.set_low();
+    fn write(&mut self, data: u8) -> Result<(), Error> {
+        self.stb.set_low().map_err(|_| Error::HardwareError)?;
         // FIXME: error handling
         block!(self.spi.send(data)).ok();
-        self.stb.set_high();
+        self.stb.set_high().map_err(|_| Error::HardwareError)?;
+        Ok(())
     }
 
-    fn write2(&mut self, data1: u8, data2: u8) {
-        self.stb.set_low();
+    fn write2(&mut self, data1: u8, data2: u8) -> Result<(), Error> {
+        self.stb.set_low().map_err(|_| Error::HardwareError)?;
         // FIXME: error handling
         block!(self.spi.send(data1)).ok();
         // FIXME: error handling
         block!(self.spi.send(data2)).ok();
-        self.stb.set_high();
+        self.stb.set_high().map_err(|_| Error::HardwareError)?;
+        Ok(())
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> Result<(), Error> {
         for i in 0..7 {
-            self.write2(0b1100_0000 | self.addr[i], 0b0000_0000);
+            self.write2(0b1100_0000 | self.addr[i], 0b0000_0000)?;
         }
+
+        Ok(())
     }
 
     pub fn print(&mut self, pos: u8, num: u8) -> Result<(), Error> {
@@ -150,7 +154,7 @@ where
 
         for i in 0..7 {
             let data = self.grid[pos as usize] * self.sym[pos as usize][num as usize][i];
-            self.write2(0b1100_0000 | self.addr[i], data);
+            self.write2(0b1100_0000 | self.addr[i], data)?;
         }
 
         Ok(())
@@ -168,7 +172,7 @@ where
                 data |= self.grid[k] * self.sym[k][*v as usize][i];
             }
 
-            self.write2(0b1100_0000 | self.addr[i], data);
+            self.write2(0b1100_0000 | self.addr[i], data)?;
         }
 
         Ok(())
@@ -197,7 +201,7 @@ where
                 data |= 2;
             }
 
-            self.write2(0b1100_0000 | self.addr[i], data);
+            self.write2(0b1100_0000 | self.addr[i], data)?;
         }
 
         Ok(())
@@ -222,7 +226,7 @@ where
                 data |= self.grid[k] * self.sym[k][*v as usize][i];
             }
 
-            self.write2(0b1100_0000 | self.addr[i], data);
+            self.write2(0b1100_0000 | self.addr[i], data)?;
         }
 
         Ok(())

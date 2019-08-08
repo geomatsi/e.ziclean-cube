@@ -1,11 +1,12 @@
 // TBD
 
-#![allow(deprecated)]
 #![no_main]
 #![no_std]
 
 use cm::iprintln;
 use cortex_m as cm;
+
+use embedded_hal::digital::v2::OutputPin;
 
 use panic_itm as _;
 
@@ -163,7 +164,7 @@ const APP: () = {
 
         // front sensors LEDs
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-        front_leds.set_low();
+        front_leds.set_low().unwrap();
 
         // front sensors channels
         let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
@@ -176,7 +177,7 @@ const APP: () = {
 
         // bottom sensors LEDs
         let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-        bottom_leds.set_low();
+        bottom_leds.set_low().unwrap();
 
         // bottom sensor channels
         let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
@@ -225,7 +226,7 @@ const APP: () = {
         // PD13: GPIO open-drain output: IR LEDs for both main motors encoders, active low
         let mut pd13 = gpiod.pd13.into_open_drain_output(&mut gpiod.crh);
         // FIXME: disable for now (active low), need to enable only for measurements ???
-        pd13.set_high();
+        pd13.set_high().unwrap();
 
         // PC12, PE8: IR diodes for both main motors encoders
         gpioc.pc12.into_floating_input(&mut gpioc.crh);

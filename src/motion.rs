@@ -1,6 +1,4 @@
-#![allow(deprecated)]
-
-use embedded_hal::digital::v1::OutputPin;
+use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 
 use super::*;
@@ -150,8 +148,8 @@ impl Motion {
 
         let max_duty = m.right.gc.0.get_max_duty();
 
-        m.left.dc.0.set_low();
-        m.left.dc.1.set_low();
+        m.left.dc.0.set_low().ok();
+        m.left.dc.1.set_low().ok();
 
         // NB: max duty corresponds to lowest gear
         m.left.gc.0.set_duty(max_duty);
@@ -160,8 +158,8 @@ impl Motion {
         m.left.gc.0.enable();
         m.left.gc.1.enable();
 
-        m.right.dc.0.set_low();
-        m.right.dc.1.set_low();
+        m.right.dc.0.set_low().ok();
+        m.right.dc.1.set_low().ok();
 
         // NB: max duty corresponds to lowest gear
         m.right.gc.0.set_duty(max_duty);
@@ -218,21 +216,29 @@ impl Motion {
         match dir {
             Direction::None => {
                 self.left.gc.0.set_duty(self.max_duty);
-                self.left.dc.0.set_low();
+                self.left.dc.0.set_low().map_err(|_| Error::HardwareError)?;
                 self.left.gc.1.set_duty(self.max_duty);
-                self.left.dc.1.set_low();
+                self.left.dc.1.set_low().map_err(|_| Error::HardwareError)?;
             }
             Direction::Forward => {
                 self.left.gc.0.set_duty(self.duty[gear as usize]);
-                self.left.dc.0.set_high();
+                self.left
+                    .dc
+                    .0
+                    .set_high()
+                    .map_err(|_| Error::HardwareError)?;
                 self.left.gc.1.set_duty(self.max_duty);
-                self.left.dc.1.set_low();
+                self.left.dc.1.set_low().map_err(|_| Error::HardwareError)?;
             }
             Direction::Reverse => {
                 self.left.gc.0.set_duty(self.max_duty);
-                self.left.dc.0.set_low();
+                self.left.dc.0.set_low().map_err(|_| Error::HardwareError)?;
                 self.left.gc.1.set_duty(self.duty[gear as usize]);
-                self.left.dc.1.set_high();
+                self.left
+                    .dc
+                    .1
+                    .set_high()
+                    .map_err(|_| Error::HardwareError)?;
             }
         };
 
@@ -243,21 +249,45 @@ impl Motion {
         match dir {
             Direction::None => {
                 self.right.gc.0.set_duty(self.max_duty);
-                self.right.dc.0.set_low();
+                self.right
+                    .dc
+                    .0
+                    .set_low()
+                    .map_err(|_| Error::HardwareError)?;
                 self.right.gc.1.set_duty(self.max_duty);
-                self.right.dc.1.set_low();
+                self.right
+                    .dc
+                    .1
+                    .set_low()
+                    .map_err(|_| Error::HardwareError)?;
             }
             Direction::Forward => {
                 self.right.gc.0.set_duty(self.duty[gear as usize]);
-                self.right.dc.0.set_high();
+                self.right
+                    .dc
+                    .0
+                    .set_high()
+                    .map_err(|_| Error::HardwareError)?;
                 self.right.gc.1.set_duty(self.max_duty);
-                self.right.dc.1.set_low();
+                self.right
+                    .dc
+                    .1
+                    .set_low()
+                    .map_err(|_| Error::HardwareError)?;
             }
             Direction::Reverse => {
                 self.right.gc.0.set_duty(self.max_duty);
-                self.right.dc.0.set_low();
+                self.right
+                    .dc
+                    .0
+                    .set_low()
+                    .map_err(|_| Error::HardwareError)?;
                 self.right.gc.1.set_duty(self.duty[gear as usize]);
-                self.right.dc.1.set_high();
+                self.right
+                    .dc
+                    .1
+                    .set_high()
+                    .map_err(|_| Error::HardwareError)?;
             }
         };
 

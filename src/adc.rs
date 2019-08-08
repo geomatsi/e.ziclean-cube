@@ -1,7 +1,5 @@
-#![allow(deprecated)]
-
 use embedded_hal::adc::OneShot;
-use embedded_hal::digital::v1::OutputPin;
+use embedded_hal::digital::v2::OutputPin;
 
 use super::*;
 
@@ -107,6 +105,8 @@ pub struct MotorData {
 pub enum Error {
     /// Function not intialized
     Uninitialized,
+    /// Hardware error
+    HwError,
 }
 
 /// Analog
@@ -163,7 +163,7 @@ impl Analog {
 
     pub fn get_front_sensors(&mut self) -> Result<FrontSensorsData, Error> {
         if let Some(ref mut f) = self.front {
-            f.led.set_high();
+            f.led.set_high().map_err(|_| Error::HwError)?;
 
             let data = FrontSensorsData {
                 fll: self.adc.read(&mut f.fll).unwrap(),
@@ -173,7 +173,7 @@ impl Analog {
                 frr: self.adc.read(&mut f.frr).unwrap(),
             };
 
-            f.led.set_low();
+            f.led.set_low().map_err(|_| Error::HwError)?;
             Ok(data)
         } else {
             Err(Error::Uninitialized)
@@ -186,7 +186,7 @@ impl Analog {
 
     pub fn get_bottom_sensors(&mut self) -> Result<BottomSensorsData, Error> {
         if let Some(ref mut b) = self.bottom {
-            b.led.set_high();
+            b.led.set_high().map_err(|_| Error::HwError)?;
 
             let data = BottomSensorsData {
                 bl: self.adc.read(&mut b.bl).unwrap(),
@@ -194,7 +194,7 @@ impl Analog {
                 br: self.adc.read(&mut b.br).unwrap(),
             };
 
-            b.led.set_low();
+            b.led.set_low().map_err(|_| Error::HwError)?;
             Ok(data)
         } else {
             Err(Error::Uninitialized)
