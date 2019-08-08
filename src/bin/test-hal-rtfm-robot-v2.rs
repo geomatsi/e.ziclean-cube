@@ -32,7 +32,6 @@ use kxcj9::{InterruptPinLatching, InterruptPinPolarity};
 use kxcj9::{WakeUpInterruptConfig, WakeUpOutputDataRate, WakeUpTriggerMotion};
 
 use nb;
-use shared_bus;
 
 /* Types */
 
@@ -44,18 +43,8 @@ type SpiTmpType = gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
 type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
 
-type TmrType = timer::Timer<stm32::TIM2>;
-type TmrProxyType = shared_bus::proxy::BusProxy<
-    'static,
-    cm::interrupt::Mutex<core::cell::RefCell<TmrType>>,
-    TmrType,
->;
-
-/* */
-
-static mut TMR_BUS: Option<
-    shared_bus::BusManager<cm::interrupt::Mutex<core::cell::RefCell<TmrType>>, TmrType>,
-> = None;
+type Tmr2Type = timer::Timer<stm32::TIM2>;
+type Tmr3Type = timer::Timer<stm32::TIM3>;
 
 /* */
 
@@ -70,11 +59,11 @@ const APP: () = {
     static mut drive: Motion = ();
     // Display
     static mut screen: Display<
-        bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, TmrProxyType>,
+        bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, Tmr2Type>,
         SpiStbType,
     > = ();
     // Accelerometer
-    static mut accel: Kxcj9<bb::i2c::I2cBB<I2cSclType, I2cSdaType, TmrProxyType>, G8Device> = ();
+    static mut accel: Kxcj9<bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>, G8Device> = ();
 
     #[init]
     fn init() {
@@ -100,27 +89,6 @@ const APP: () = {
         let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
 
         let mut afio = device.AFIO.constrain(&mut rcc.apb2);
-
-        /*
-         * Enable shared access to TMR2 using shared_bus crate
-         *
-         */
-
-        // trick to workaround rtfm late init of static resources:
-        // tmr_bus needs to be 'static
-        let tmr_bus = {
-            let timer = timer::Timer::tim2(device.TIM2, 200.khz(), clocks, &mut rcc.apb1);
-            let bus = shared_bus::BusManager::<
-                cm::interrupt::Mutex<core::cell::RefCell<TmrType>>,
-                TmrType,
-            >::new(timer);
-
-            unsafe {
-                TMR_BUS = Some(bus);
-                // This reference is now &'static
-                &TMR_BUS.as_ref().unwrap()
-            }
-        };
 
         /*
          * Motion controls
@@ -185,21 +153,6 @@ const APP: () = {
         let ch9 = gpiob.pb1.into_analog(&mut gpiob.crl);
 
         a.init_bottom_sensors(bottom_leds, ch11, ch7, ch9);
-
-        /*
-         * Display
-         *
-         */
-
-        let tmp = gpioe.pe15.into_floating_input(&mut gpioe.crh);
-        let clk = gpioc.pc8.into_push_pull_output(&mut gpioc.crh);
-        let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
-        let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
-
-        let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, tmr_bus.acquire());
-        spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
-
-        let d = Display::init(spi, stb);
 
         /*
          * Sensor button
@@ -267,9 +220,30 @@ const APP: () = {
         device.EXTI.ftsr.modify(|_, w| w.tr4().set_bit());
 
         /*
+         * Display
+         *
+         */
+
+        // FIXME: for now use TIM2 exclusively for display, however it should be shared with accel
+        let tim2 = timer::Timer::tim2(device.TIM2, 200.khz(), clocks, &mut rcc.apb1);
+
+        let tmp = gpioe.pe15.into_floating_input(&mut gpioe.crh);
+        let clk = gpioc.pc8.into_push_pull_output(&mut gpioc.crh);
+        let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
+        let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
+
+        let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, tim2);
+        spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
+
+        let d = Display::init(spi, stb);
+
+        /*
          * Accelerometer
          *
          */
+
+        // FIXME: for now use TIM3 for accel, but it is used for brushes PWM
+        let tim3 = timer::Timer::tim3(device.TIM3, 200.khz(), clocks, &mut rcc.apb1);
 
         let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
         let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
@@ -284,7 +258,7 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
         device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
 
-        let i2c = bb::i2c::I2cBB::new(scl, sda, tmr_bus.acquire());
+        let i2c = bb::i2c::I2cBB::new(scl, sda, tim3);
         let address = SlaveAddr::Alternative(true);
 
         let mut acc = Kxcj9::new_kxcj9_1008(i2c, address);
