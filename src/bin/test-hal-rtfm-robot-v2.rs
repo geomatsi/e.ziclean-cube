@@ -4,7 +4,6 @@
 #![no_std]
 
 use cm::iprintln;
-use cm::peripheral::syst::SystClkSource;
 use cortex_m as cm;
 
 use embedded_hal::digital::v2::InputPin;
@@ -13,6 +12,7 @@ use embedded_hal::digital::v2::OutputPin;
 use panic_itm as _;
 
 use rtfm::app;
+use rtfm::Instant;
 
 use hal::adc;
 use hal::gpio;
@@ -59,6 +59,11 @@ type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>;
 
 /* */
 
+const CHARGER_CHECK_PERIOD: u32 = 40_000_000; /* 1 sec */
+const PRIO_CHECK_PERIOD: u32 = 800_000; /* 1/10 sec */
+
+/* */
+
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
     // Event queue
@@ -86,7 +91,7 @@ const APP: () = {
     // Accelerometer
     static mut accel: Kxcj9<I2cAccel, G8Device> = ();
 
-    #[init]
+    #[init(schedule = [prio_events_task, check_charger_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -114,16 +119,6 @@ const APP: () = {
         let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
 
         let mut afio = device.AFIO.constrain(&mut rcc.apb2);
-
-        /*
-         * SysTick timer
-         */
-
-        let mut syst = core.SYST;
-        syst.set_clock_source(SystClkSource::Core);
-        syst.set_reload(800_000 - 1); /* 1/10 sec */
-        syst.enable_counter();
-        syst.enable_interrupt();
 
         /*
          * Motion controls
@@ -296,7 +291,8 @@ const APP: () = {
          */
 
         // FIXME: for now use TIM3 for accel, but it is used for brushes PWM
-        let tim3 = timer::Timer::tim3(device.TIM3, 200.khz(), clocks, &mut rcc.apb1);
+        // NOTE: in release build mode decrease clock to 50kHz
+        let tim3 = timer::Timer::tim3(device.TIM3, 50.khz(), clocks, &mut rcc.apb1);
 
         let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
         let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
@@ -344,6 +340,18 @@ const APP: () = {
         acc.enable_wake_up_interrupt(config).unwrap();
 
         /*
+         * schedule periodic tasks
+         *
+         */
+
+        schedule
+            .check_charger_task(Instant::now() + CHARGER_CHECK_PERIOD.cycles())
+            .unwrap();
+        schedule
+            .prio_events_task(Instant::now() + PRIO_CHECK_PERIOD.cycles())
+            .unwrap();
+
+        /*
          * init late resources
          *
          */
@@ -361,6 +369,10 @@ const APP: () = {
         charger = charger;
     }
 
+    /*
+     * Idle loop processes events with normal priority
+     *
+     */
     #[idle(resources = [itm, norm_eq])]
     fn idle() -> ! {
         let mut ev = Events::None;
@@ -383,8 +395,44 @@ const APP: () = {
         }
     }
 
-    #[exception(resources = [itm, prio_eq])]
-    fn SysTick() {
+    /*
+     * This interrupt is used to dispatch timer queue tasks.
+     * FIXME:  not all interrupts work here, e.g. UART4 does not work
+     *
+     */
+    extern "C" {
+        fn EXTI2();
+    }
+
+    /*
+     * Slow timer to check charger and battery events
+     *
+     */
+    #[task(schedule = [check_charger_task], resources = [dock, charger, norm_eq])]
+    fn check_charger_task() {
+        let eq = &mut resources.norm_eq;
+
+        let dock = resources.dock.is_high().unwrap_or(false);
+        let ce = Events::DockEvent(dock);
+        eq.enqueue(ce).ok();
+
+        let plugged = resources.charger.is_high().unwrap_or(false);
+        let de = Events::ChargerEvent(plugged);
+        eq.enqueue(de).ok();
+
+        // TODO: check battery voltage here to report BatteryLow event
+
+        schedule
+            .check_charger_task(scheduled + CHARGER_CHECK_PERIOD.cycles())
+            .unwrap();
+    }
+
+    /*
+     * Fast timer to process high priority events
+     *
+     */
+    #[task(schedule = [prio_events_task], resources = [itm, prio_eq])]
+    fn prio_events_task() {
         let d = &mut resources.itm.stim[0];
         let eq = &mut resources.prio_eq;
 
@@ -395,6 +443,10 @@ const APP: () = {
                 break;
             }
         }
+
+        schedule
+            .prio_events_task(scheduled + PRIO_CHECK_PERIOD.cycles())
+            .unwrap();
     }
 
     #[interrupt(resources = [exti, screen, button, norm_eq])]
