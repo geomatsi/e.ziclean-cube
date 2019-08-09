@@ -4,8 +4,10 @@
 #![no_std]
 
 use cm::iprintln;
+use cm::peripheral::syst::SystClkSource;
 use cortex_m as cm;
 
+use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
 use panic_itm as _;
@@ -24,7 +26,10 @@ use bitbang_hal as bb;
 
 use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
 use eziclean::display::Display;
+use eziclean::events::Events;
 use eziclean::motion::{Direction, Gear, Motion, Rotation};
+
+use heapless::mpmc::Q64;
 
 use kxcj9::ic::G8Device;
 use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
@@ -35,40 +40,60 @@ use nb;
 
 /* Types */
 
+type Tmr2Type = timer::Timer<stm32::TIM2>;
+type Tmr3Type = timer::Timer<stm32::TIM3>;
+
+type DockGpioType = gpio::gpioe::PE5<hal::gpio::Input<hal::gpio::Floating>>;
+type ButtonGpioType = gpio::gpiod::PD1<hal::gpio::Input<hal::gpio::Floating>>;
+type ChargerGpioType = gpio::gpioe::PE4<hal::gpio::Input<hal::gpio::Floating>>;
+
 type SpiStbType = gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiDioType = gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiClkType = gpio::gpioc::PC8<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiTmpType = gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
+type SpiScreen = bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, Tmr2Type>;
 
 type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
-
-type Tmr2Type = timer::Timer<stm32::TIM2>;
-type Tmr3Type = timer::Timer<stm32::TIM3>;
+type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>;
 
 /* */
 
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
+    // Event queue
+    static mut prio_eq: Q64<Events> = ();
+    static mut norm_eq: Q64<Events> = ();
+
     // basic hardware resources
     static mut exti: stm32::EXTI = ();
     static mut itm: stm32::ITM = ();
+
+    // buttons and chargers
+    static mut dock: DockGpioType = ();
+    static mut button: ButtonGpioType = ();
+    static mut charger: ChargerGpioType = ();
+
     // analog readings
     static mut analog: Analog = ();
+
     // Motion control
     static mut drive: Motion = ();
+
     // Display
-    static mut screen: Display<
-        bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, Tmr2Type>,
-        SpiStbType,
-    > = ();
+    static mut screen: Display<SpiScreen, SpiStbType> = ();
+
     // Accelerometer
-    static mut accel: Kxcj9<bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>, G8Device> = ();
+    static mut accel: Kxcj9<I2cAccel, G8Device> = ();
 
     #[init]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
+
+        // setup event queues
+        let prio_eq = Q64::new();
+        let norm_eq = Q64::new();
 
         // configure clocks
         let mut flash = device.FLASH.constrain();
@@ -89,6 +114,16 @@ const APP: () = {
         let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
 
         let mut afio = device.AFIO.constrain(&mut rcc.apb2);
+
+        /*
+         * SysTick timer
+         */
+
+        let mut syst = core.SYST;
+        syst.set_clock_source(SystClkSource::Core);
+        syst.set_reload(800_000 - 1); /* 1/10 sec */
+        syst.enable_counter();
+        syst.enable_interrupt();
 
         /*
          * Motion controls
@@ -160,16 +195,17 @@ const APP: () = {
          */
 
         // PD1: one-channel touch sensor
-        gpiod.pd1.into_floating_input(&mut gpiod.crl);
+        let button = gpiod.pd1.into_floating_input(&mut gpiod.crl);
 
         // select PD1 as source input for line EXTI1
         afio.exticr1
             .exticr1()
             .modify(|_, w| unsafe { w.exti1().bits(0b0011) });
 
-        // enable EXTI1 line and configure interrupt on falling edge
+        // enable EXTI1 line and configure interrupt on both falling and rising edges
         device.EXTI.imr.modify(|_, w| w.mr1().set_bit());
         device.EXTI.ftsr.modify(|_, w| w.tr1().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr1().set_bit());
 
         /*
          * Wheel encoders
@@ -203,11 +239,11 @@ const APP: () = {
         device.EXTI.rtsr.modify(|_, w| w.tr12().set_bit());
 
         /*
-         * Wheel encoders
+         * Charging cable detection
          *
          */
 
-        gpioe.pe4.into_floating_input(&mut gpioe.crl);
+        let charger = gpioe.pe4.into_floating_input(&mut gpioe.crl);
 
         // select PE4 as source input for line EXTI4
         afio.exticr2
@@ -218,6 +254,23 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr4().set_bit());
         device.EXTI.rtsr.modify(|_, w| w.tr4().set_bit());
         device.EXTI.ftsr.modify(|_, w| w.tr4().set_bit());
+
+        /*
+         * Dock station detection
+         *
+         */
+
+        let dock = gpioe.pe5.into_floating_input(&mut gpioe.crl);
+
+        // select PE5 as source input for line EXTI9_5
+        afio.exticr2
+            .exticr2()
+            .modify(|_, w| unsafe { w.exti5().bits(0b0100) });
+
+        // enable EXTI5 and configure interrupt on rising and falling edge
+        device.EXTI.imr.modify(|_, w| w.mr5().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr5().set_bit());
+        device.EXTI.ftsr.modify(|_, w| w.tr5().set_bit());
 
         /*
          * Display
@@ -295,74 +348,114 @@ const APP: () = {
          *
          */
 
+        prio_eq = prio_eq;
+        norm_eq = norm_eq;
         itm = core.ITM;
         exti = device.EXTI;
         analog = a;
         drive = m;
         screen = d;
         accel = acc;
+        dock = dock;
+        button = button;
+        charger = charger;
     }
 
-    #[idle(resources = [itm, screen])]
+    #[idle(resources = [itm, norm_eq])]
     fn idle() -> ! {
-        let mut n: u16 = 0;
+        let mut ev = Events::None;
 
         loop {
-            resources.screen.lock(|d| {
-                d.print_num(n).unwrap();
+            resources.norm_eq.lock(|q| {
+                if let Some(e) = q.dequeue() {
+                    ev = e;
+                } else {
+                    ev = Events::None;
+                }
             });
 
-            n = if n < 9999 { n + 1 } else { 0 };
-            cm::asm::wfi();
+            match ev {
+                Events::None => cm::asm::wfi(),
+                _ => resources.itm.lock(|s| {
+                    iprintln!(&mut s.stim[0], ">>> norm event {:?}", ev);
+                }),
+            }
         }
     }
 
-    #[interrupt(resources = [exti, itm, screen])]
+    #[exception(resources = [itm, prio_eq])]
+    fn SysTick() {
+        let d = &mut resources.itm.stim[0];
+        let eq = &mut resources.prio_eq;
+
+        loop {
+            if let Some(e) = eq.dequeue() {
+                iprintln!(d, ">>> prio event {:?}", e);
+            } else {
+                break;
+            }
+        }
+    }
+
+    #[interrupt(resources = [exti, screen, button, norm_eq])]
     fn EXTI1() {
-        let d = &mut resources.itm.stim[0];
-        iprintln!(d, ">>> EXTI1: BUTTON");
+        let pressed = resources.button.is_low().unwrap_or(false);
+        let eq = &mut resources.norm_eq;
+        let e = Events::ButtonEvent(pressed);
 
-        resources.screen.print4([1, 1, 1, 1]).unwrap();
+        resources.screen.print_num(0000).ok();
         resources.exti.pr.modify(|_, w| w.pr1().set_bit());
-        // TODO: queue button Event
+        eq.enqueue(e).ok();
     }
 
-    #[interrupt(resources = [exti, itm])]
+    #[interrupt(resources = [exti, charger, screen, norm_eq])]
     fn EXTI4() {
-        let d = &mut resources.itm.stim[0];
-        iprintln!(d, ">>> EXTI4: CHARGER");
+        let plugged = resources.charger.is_high().unwrap_or(false);
+        let eq = &mut resources.norm_eq;
+        let e = Events::ChargerEvent(plugged);
 
+        resources.screen.print_num(1111).ok();
         resources.exti.pr.modify(|_, w| w.pr4().set_bit());
-        // TODO: queue charger Event
+        eq.enqueue(e).ok();
     }
 
-    #[interrupt(resources = [exti, itm, accel])]
+    #[interrupt(resources = [exti, screen, accel, dock, norm_eq, prio_eq])]
     fn EXTI9_5() {
-        let d = &mut resources.itm.stim[0];
+        let neq = &mut resources.norm_eq;
+        let peq = &mut resources.prio_eq;
         let r = resources.exti.pr.read();
 
+        if r.pr5().bit_is_set() {
+            let dock = resources.dock.is_high().unwrap_or(false);
+            let e = Events::DockEvent(dock);
+            resources.exti.pr.modify(|_, w| w.pr4().set_bit());
+            neq.enqueue(e).ok();
+        }
+
         if r.pr8().bit_is_set() {
-            iprintln!(d, ">>> EXTI9_5: RENC");
             resources.exti.pr.modify(|_, w| w.pr8().set_bit());
             // TODO: collect stats to get rotation speed
         }
 
         if r.pr9().bit_is_set() {
             let info = resources.accel.read_interrupt_info().unwrap();
-            iprintln!(d, ">>> EXTI9_5: ACCEL {:?}", info);
+            let x = info.wake_up_x_negative | info.wake_up_x_positive;
+            let y = info.wake_up_y_negative | info.wake_up_y_positive;
+            let z = info.wake_up_z_negative | info.wake_up_z_positive;
+            let e = Events::AccEvent(x, y, z);
+
+            resources.screen.print_num(2222).ok();
             resources.accel.clear_interrupts().unwrap();
             resources.exti.pr.modify(|_, w| w.pr9().set_bit());
-            // TODO: send accelerometer event
+            peq.enqueue(e).ok();
         }
     }
 
-    #[interrupt(resources = [exti, itm])]
+    #[interrupt(resources = [exti])]
     fn EXTI15_10() {
-        let d = &mut resources.itm.stim[0];
         let r = resources.exti.pr.read();
 
         if r.pr12().bit_is_set() {
-            iprintln!(d, ">>> EXTI15_10: LENC");
             resources.exti.pr.modify(|_, w| w.pr12().set_bit());
             // TODO: collect stats to get rotation speed
         }
