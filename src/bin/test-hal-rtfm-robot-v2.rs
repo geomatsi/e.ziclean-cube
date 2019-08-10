@@ -29,7 +29,8 @@ use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::{Direction, Gear, Motion, Rotation};
 
-use heapless::mpmc::Q64;
+use heapless::binary_heap::{BinaryHeap, Max};
+use heapless::consts::*;
 
 use kxcj9::ic::G8Device;
 use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
@@ -67,8 +68,7 @@ const PRIO_CHECK_PERIOD: u32 = 800_000; /* 1/10 sec */
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
     // Event queue
-    static mut prio_eq: Q64<Events> = ();
-    static mut norm_eq: Q64<Events> = ();
+    static mut queue: BinaryHeap<Events, U8, Max> = ();
 
     // basic hardware resources
     static mut exti: stm32::EXTI = ();
@@ -97,8 +97,7 @@ const APP: () = {
         let dbg = &mut core.ITM.stim[0];
 
         // setup event queues
-        let prio_eq = Q64::new();
-        let norm_eq = Q64::new();
+        let queue = BinaryHeap(heapless::i::BinaryHeap::new());
 
         // configure clocks
         let mut flash = device.FLASH.constrain();
@@ -356,8 +355,7 @@ const APP: () = {
          *
          */
 
-        prio_eq = prio_eq;
-        norm_eq = norm_eq;
+        queue = queue;
         itm = core.ITM;
         exti = device.EXTI;
         analog = a;
@@ -373,13 +371,13 @@ const APP: () = {
      * Idle loop processes events with normal priority
      *
      */
-    #[idle(resources = [itm, norm_eq])]
+    #[idle(resources = [itm, queue])]
     fn idle() -> ! {
         let mut ev = Events::None;
 
         loop {
-            resources.norm_eq.lock(|q| {
-                if let Some(e) = q.dequeue() {
+            resources.queue.lock(|q| {
+                if let Some(e) = q.pop() {
                     ev = e;
                 } else {
                     ev = Events::None;
@@ -408,17 +406,17 @@ const APP: () = {
      * Slow timer to check charger and battery events
      *
      */
-    #[task(schedule = [check_charger_task], resources = [dock, charger, norm_eq])]
+    #[task(schedule = [check_charger_task], resources = [dock, charger, queue])]
     fn check_charger_task() {
-        let eq = &mut resources.norm_eq;
+        let eq = &mut resources.queue;
 
         let dock = resources.dock.is_high().unwrap_or(false);
         let ce = Events::DockEvent(dock);
-        eq.enqueue(ce).ok();
+        eq.push(ce).ok();
 
         let plugged = resources.charger.is_high().unwrap_or(false);
         let de = Events::ChargerEvent(plugged);
-        eq.enqueue(de).ok();
+        eq.push(de).ok();
 
         // TODO: check battery voltage here to report BatteryLow event
 
@@ -431,13 +429,13 @@ const APP: () = {
      * Fast timer to process high priority events
      *
      */
-    #[task(schedule = [prio_events_task], resources = [itm, prio_eq])]
+    #[task(schedule = [prio_events_task], resources = [itm, queue])]
     fn prio_events_task() {
         let d = &mut resources.itm.stim[0];
-        let eq = &mut resources.prio_eq;
+        let eq = &mut resources.queue;
 
         loop {
-            if let Some(e) = eq.dequeue() {
+            if let Some(e) = eq.pop() {
                 iprintln!(d, ">>> prio event {:?}", e);
             } else {
                 break;
@@ -449,39 +447,38 @@ const APP: () = {
             .unwrap();
     }
 
-    #[interrupt(resources = [exti, screen, button, norm_eq])]
+    #[interrupt(resources = [exti, screen, button, queue])]
     fn EXTI1() {
         let pressed = resources.button.is_low().unwrap_or(false);
-        let eq = &mut resources.norm_eq;
+        let eq = &mut resources.queue;
         let e = Events::ButtonEvent(pressed);
 
         resources.screen.print_num(0000).ok();
         resources.exti.pr.modify(|_, w| w.pr1().set_bit());
-        eq.enqueue(e).ok();
+        eq.push(e).ok();
     }
 
-    #[interrupt(resources = [exti, charger, screen, norm_eq])]
+    #[interrupt(resources = [exti, charger, screen, queue])]
     fn EXTI4() {
         let plugged = resources.charger.is_high().unwrap_or(false);
-        let eq = &mut resources.norm_eq;
+        let eq = &mut resources.queue;
         let e = Events::ChargerEvent(plugged);
 
         resources.screen.print_num(1111).ok();
         resources.exti.pr.modify(|_, w| w.pr4().set_bit());
-        eq.enqueue(e).ok();
+        eq.push(e).ok();
     }
 
-    #[interrupt(resources = [exti, screen, accel, dock, norm_eq, prio_eq])]
+    #[interrupt(resources = [exti, screen, accel, dock, queue])]
     fn EXTI9_5() {
-        let neq = &mut resources.norm_eq;
-        let peq = &mut resources.prio_eq;
+        let eq = &mut resources.queue;
         let r = resources.exti.pr.read();
 
         if r.pr5().bit_is_set() {
             let dock = resources.dock.is_high().unwrap_or(false);
             let e = Events::DockEvent(dock);
             resources.exti.pr.modify(|_, w| w.pr4().set_bit());
-            neq.enqueue(e).ok();
+            eq.push(e).ok();
         }
 
         if r.pr8().bit_is_set() {
@@ -499,7 +496,7 @@ const APP: () = {
             resources.screen.print_num(2222).ok();
             resources.accel.clear_interrupts().unwrap();
             resources.exti.pr.modify(|_, w| w.pr9().set_bit());
-            peq.enqueue(e).ok();
+            eq.push(e).ok();
         }
     }
 
