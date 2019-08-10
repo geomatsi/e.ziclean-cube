@@ -24,10 +24,10 @@ use stm32f1xx_hal as hal;
 
 use bitbang_hal as bb;
 
-use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
+use eziclean::adc::Analog;
 use eziclean::display::Display;
 use eziclean::events::Events;
-use eziclean::motion::{Direction, Gear, Motion, Rotation};
+use eziclean::motion::Motion;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
@@ -60,8 +60,9 @@ type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>;
 
 /* */
 
-const CHARGER_CHECK_PERIOD: u32 = 40_000_000; /* 1 sec */
-const PRIO_CHECK_PERIOD: u32 = 800_000; /* 1/10 sec */
+const PROC_PERIOD: u32 = 400_000; /* 1/20 sec */
+const SENSE_PERIOD: u32 = 800_000; /* 1/10 sec */
+const POWER_PERIOD: u32 = 80_000_000; /* 10 sec */
 
 /* */
 
@@ -91,7 +92,7 @@ const APP: () = {
     // Accelerometer
     static mut accel: Kxcj9<I2cAccel, G8Device> = ();
 
-    #[init(schedule = [prio_events_task, check_charger_task])]
+    #[init(schedule = [proc_task, sense_task, power_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -105,7 +106,7 @@ const APP: () = {
             .cfgr
             .sysclk(8.mhz())
             .pclk1(8.mhz())
-            .adcclk(4.mhz())
+            .adcclk(2.mhz())
             .freeze(&mut flash.acr);
 
         iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
@@ -344,10 +345,13 @@ const APP: () = {
          */
 
         schedule
-            .check_charger_task(Instant::now() + CHARGER_CHECK_PERIOD.cycles())
+            .proc_task(Instant::now() + PROC_PERIOD.cycles())
             .unwrap();
         schedule
-            .prio_events_task(Instant::now() + PRIO_CHECK_PERIOD.cycles())
+            .sense_task(Instant::now() + SENSE_PERIOD.cycles())
+            .unwrap();
+        schedule
+            .power_task(Instant::now() + POWER_PERIOD.cycles())
             .unwrap();
 
         /*
@@ -371,25 +375,10 @@ const APP: () = {
      * Idle loop processes events with normal priority
      *
      */
-    #[idle(resources = [itm, queue])]
+    #[idle]
     fn idle() -> ! {
-        let mut ev = Events::None;
-
         loop {
-            resources.queue.lock(|q| {
-                if let Some(e) = q.pop() {
-                    ev = e;
-                } else {
-                    ev = Events::None;
-                }
-            });
-
-            match ev {
-                Events::None => cm::asm::wfi(),
-                _ => resources.itm.lock(|s| {
-                    iprintln!(&mut s.stim[0], ">>> norm event {:?}", ev);
-                }),
-            }
+            cm::asm::wfi();
         }
     }
 
@@ -403,47 +392,80 @@ const APP: () = {
     }
 
     /*
-     * Slow timer to check charger and battery events
+     * Brain: main processing task
      *
      */
-    #[task(schedule = [check_charger_task], resources = [dock, charger, queue])]
-    fn check_charger_task() {
-        let eq = &mut resources.queue;
-
-        let dock = resources.dock.is_high().unwrap_or(false);
-        let ce = Events::DockEvent(dock);
-        eq.push(ce).ok();
-
-        let plugged = resources.charger.is_high().unwrap_or(false);
-        let de = Events::ChargerEvent(plugged);
-        eq.push(de).ok();
-
-        // TODO: check battery voltage here to report BatteryLow event
-
-        schedule
-            .check_charger_task(scheduled + CHARGER_CHECK_PERIOD.cycles())
-            .unwrap();
-    }
-
-    /*
-     * Fast timer to process high priority events
-     *
-     */
-    #[task(schedule = [prio_events_task], resources = [itm, queue])]
-    fn prio_events_task() {
+    #[task(schedule = [proc_task], resources = [itm, queue])]
+    fn proc_task() {
         let d = &mut resources.itm.stim[0];
         let eq = &mut resources.queue;
 
-        loop {
+        while !eq.is_empty() {
             if let Some(e) = eq.pop() {
                 iprintln!(d, ">>> prio event {:?}", e);
-            } else {
-                break;
             }
         }
 
         schedule
-            .prio_events_task(scheduled + PRIO_CHECK_PERIOD.cycles())
+            .proc_task(scheduled + PROC_PERIOD.cycles())
+            .unwrap();
+    }
+
+    /*
+     * Sense: sensor processing task to watch for obstacles using IR obstacle sensors
+     * TODO: setup ADC+DMA and convert this task into ADC DMA interrupt handler
+     *
+     */
+    #[task(schedule = [sense_task], resources = [itm, analog, queue])]
+    fn sense_task() {
+        let d = &mut resources.itm.stim[0];
+        let adc = &mut resources.analog;
+        let eq = &mut resources.queue;
+        let max = adc.get_max_sample();
+
+        if let Ok(fs) = adc.get_front_sensors() {
+            let fll = is_obstacle(fs.fll, max);
+            let flc = is_obstacle(fs.flc, max);
+            let fcc = is_obstacle(fs.fcc, max);
+            let frc = is_obstacle(fs.frc, max);
+            let frr = is_obstacle(fs.frr, max);
+
+            if fll || flc || fcc || frc || frr {
+                iprintln!(
+                    d,
+                    ">>> sensor {} {} {} {} {}",
+                    max - fs.fll,
+                    max - fs.flc,
+                    max - fs.fcc,
+                    max - fs.frc,
+                    max - fs.frr
+                );
+                //eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
+            }
+        }
+
+        // TODO: read and analyze bottom sensors
+
+        schedule
+            .sense_task(scheduled + SENSE_PERIOD.cycles())
+            .unwrap();
+    }
+
+    /*
+     * Power: task checking battery, dock station and charger plug
+     *
+     */
+    #[task(schedule = [power_task], resources = [dock, charger, queue])]
+    fn power_task() {
+        let c = resources.charger.is_high().unwrap_or(false);
+        let d = resources.dock.is_high().unwrap_or(false);
+        let eq = &mut resources.queue;
+
+        eq.push(Events::ChargerEvent(c)).ok();
+        eq.push(Events::DockEvent(d)).ok();
+
+        schedule
+            .power_task(scheduled + POWER_PERIOD.cycles())
             .unwrap();
     }
 
@@ -510,3 +532,9 @@ const APP: () = {
         }
     }
 };
+
+//
+
+fn is_obstacle(val: u16, max: u16) -> bool {
+    val < max - 200
+}
