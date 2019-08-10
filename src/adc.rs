@@ -161,19 +161,25 @@ impl Analog {
         });
     }
 
-    pub fn get_front_sensors(&mut self) -> Result<FrontSensorsData, Error> {
+    pub fn get_front_sensors(&mut self, led: bool) -> Result<FrontSensorsData, Error> {
         if let Some(ref mut f) = self.front {
-            f.led.set_high().map_err(|_| Error::HwError)?;
+            if led {
+                f.led.set_high().map_err(|_| Error::HwError)?;
+            }
 
             let data = FrontSensorsData {
-                fll: self.adc.read(&mut f.fll).unwrap(),
                 flc: self.adc.read(&mut f.flc).unwrap(),
                 fcc: self.adc.read(&mut f.fcc).unwrap(),
                 frc: self.adc.read(&mut f.frc).unwrap(),
                 frr: self.adc.read(&mut f.frr).unwrap(),
+                // FIXME: FLL diode seems to be too slow: no reaction right after LED is on
+                fll: self.adc.read(&mut f.fll).unwrap(),
             };
 
-            f.led.set_low().map_err(|_| Error::HwError)?;
+            if led {
+                f.led.set_low().map_err(|_| Error::HwError)?;
+            }
+
             Ok(data)
         } else {
             Err(Error::Uninitialized)
@@ -184,9 +190,11 @@ impl Analog {
         self.bottom = Some(BottomSensors { led, bl, bc, br });
     }
 
-    pub fn get_bottom_sensors(&mut self) -> Result<BottomSensorsData, Error> {
+    pub fn get_bottom_sensors(&mut self, led: bool) -> Result<BottomSensorsData, Error> {
         if let Some(ref mut b) = self.bottom {
-            b.led.set_high().map_err(|_| Error::HwError)?;
+            if led {
+                b.led.set_high().map_err(|_| Error::HwError)?;
+            }
 
             let data = BottomSensorsData {
                 bl: self.adc.read(&mut b.bl).unwrap(),
@@ -194,7 +202,10 @@ impl Analog {
                 br: self.adc.read(&mut b.br).unwrap(),
             };
 
-            b.led.set_low().map_err(|_| Error::HwError)?;
+            if led {
+                b.led.set_low().map_err(|_| Error::HwError)?;
+            }
+
             Ok(data)
         } else {
             Err(Error::Uninitialized)

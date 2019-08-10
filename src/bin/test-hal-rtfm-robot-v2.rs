@@ -158,7 +158,7 @@ const APP: () = {
          */
 
         let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
-        let mut a = Analog::init(adc, adc::AdcSampleTime::T_13);
+        let mut a = Analog::init(adc, adc::AdcSampleTime::T_28);
 
         // front sensors LEDs
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
@@ -418,29 +418,19 @@ const APP: () = {
      */
     #[task(schedule = [sense_task], resources = [itm, analog, queue])]
     fn sense_task() {
-        let d = &mut resources.itm.stim[0];
+        let _d = &mut resources.itm.stim[0];
         let adc = &mut resources.analog;
         let eq = &mut resources.queue;
-        let max = adc.get_max_sample();
 
-        if let Ok(fs) = adc.get_front_sensors() {
-            let fll = is_obstacle(fs.fll, max);
-            let flc = is_obstacle(fs.flc, max);
-            let fcc = is_obstacle(fs.fcc, max);
-            let frc = is_obstacle(fs.frc, max);
-            let frr = is_obstacle(fs.frr, max);
+        if let (Ok(fs1), Ok(fs2)) = (adc.get_front_sensors(false), adc.get_front_sensors(true)) {
+            let fll = is_obstacle(fs1.fll, fs2.fll);
+            let flc = is_obstacle(fs1.flc, fs2.flc);
+            let fcc = is_obstacle(fs1.fcc, fs2.fcc);
+            let frc = is_obstacle(fs1.frc, fs2.frc);
+            let frr = is_obstacle(fs1.frr, fs2.frr);
 
             if fll || flc || fcc || frc || frr {
-                iprintln!(
-                    d,
-                    ">>> sensor {} {} {} {} {}",
-                    max - fs.fll,
-                    max - fs.flc,
-                    max - fs.fcc,
-                    max - fs.frc,
-                    max - fs.frr
-                );
-                //eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
+                eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
             }
         }
 
@@ -533,8 +523,8 @@ const APP: () = {
     }
 };
 
-//
+/* utils */
 
-fn is_obstacle(val: u16, max: u16) -> bool {
-    val < max - 200
+fn is_obstacle(v1: u16, v2: u16) -> bool {
+    (v1 > v2 + 50) | (v2 > v1 + 50)
 }
