@@ -79,8 +79,8 @@ struct Battery {
 /// Battery measurements
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct BatteryData {
-    pub voltage: u16,
-    pub current: u16,
+    pub voltage: u32,
+    pub current: u32,
 }
 
 /// Motor current controls
@@ -218,9 +218,23 @@ impl Analog {
 
     pub fn get_battery(&mut self) -> Result<BatteryData, Error> {
         if let Some(ref mut b) = self.battery {
+            // Read ADC values
+            let v_ref: u32 = self.adc.read_vref().into();
+            let v_ch1: u32 = self.adc.read(&mut b.voltage).unwrap();
+            let v_ch2: u32 = self.adc.read(&mut b.current).unwrap();
+
+            // As per PCB investigation, battery voltage divider:
+            // v_ch1 (mV) = v_bat * 20k / (200k + 20k) */
+            let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
+
+            // As per PCB investigation, OpAmp-1 (voltage subtractor) + OpAmp-2 (voltage follower):
+            // v_ch2 (mV) = v_shunt * (200k / 10k)
+            let v_shunt: u32 = v_ch2 * 1200 * 10 / v_ref / 200;
+            // TODO: convert shunt voltage to current in mA
+
             Ok(BatteryData {
-                voltage: self.adc.read(&mut b.voltage).unwrap(),
-                current: self.adc.read(&mut b.current).unwrap(),
+                voltage: v_bat,
+                current: v_shunt,
             })
         } else {
             Err(Error::Uninitialized)

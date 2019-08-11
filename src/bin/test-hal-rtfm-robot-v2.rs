@@ -44,9 +44,10 @@ use nb;
 type Tmr2Type = timer::Timer<stm32::TIM2>;
 type Tmr3Type = timer::Timer<stm32::TIM3>;
 
-type DockGpioType = gpio::gpioe::PE5<hal::gpio::Input<hal::gpio::Floating>>;
 type ButtonGpioType = gpio::gpiod::PD1<hal::gpio::Input<hal::gpio::Floating>>;
 type ChargerGpioType = gpio::gpioe::PE4<hal::gpio::Input<hal::gpio::Floating>>;
+type DockGpioType = gpio::gpioe::PE5<hal::gpio::Input<hal::gpio::Floating>>;
+type BatteryGpioType = gpio::gpioe::PE6<hal::gpio::Input<hal::gpio::Floating>>;
 
 type SpiStbType = gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiDioType = gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
@@ -79,6 +80,7 @@ const APP: () = {
     static mut dock: DockGpioType = ();
     static mut button: ButtonGpioType = ();
     static mut charger: ChargerGpioType = ();
+    static mut battery: BatteryGpioType = ();
 
     // analog readings
     static mut analog: Analog = ();
@@ -184,6 +186,12 @@ const APP: () = {
 
         a.init_bottom_sensors(bottom_leds, ch11, ch7, ch9);
 
+        // battery control channels
+        let ch1 = gpioa.pa1.into_analog(&mut gpioa.crl);
+        let ch2 = gpioa.pa2.into_analog(&mut gpioa.crl);
+
+        a.init_battery_controls(ch1, ch2);
+
         /*
          * Sensor button
          *
@@ -266,6 +274,23 @@ const APP: () = {
         device.EXTI.imr.modify(|_, w| w.mr5().set_bit());
         device.EXTI.rtsr.modify(|_, w| w.tr5().set_bit());
         device.EXTI.ftsr.modify(|_, w| w.tr5().set_bit());
+
+        /*
+         * Battery presence detection
+         *
+         */
+
+        let battery = gpioe.pe6.into_floating_input(&mut gpioe.crl);
+
+        // select PE6 as source input for line EXTI9_5
+        afio.exticr2
+            .exticr2()
+            .modify(|_, w| unsafe { w.exti6().bits(0b0100) });
+
+        // enable EXTI6 and configure interrupt on rising and falling edge
+        device.EXTI.imr.modify(|_, w| w.mr6().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr6().set_bit());
+        device.EXTI.ftsr.modify(|_, w| w.tr6().set_bit());
 
         /*
          * Display
@@ -369,6 +394,7 @@ const APP: () = {
         dock = dock;
         button = button;
         charger = charger;
+        battery = battery;
     }
 
     /*
@@ -397,12 +423,12 @@ const APP: () = {
      */
     #[task(schedule = [proc_task], resources = [itm, queue])]
     fn proc_task() {
-        let d = &mut resources.itm.stim[0];
+        let dbg = &mut resources.itm.stim[0];
         let eq = &mut resources.queue;
 
         while !eq.is_empty() {
             if let Some(e) = eq.pop() {
-                iprintln!(d, ">>> prio event {:?}", e);
+                iprintln!(dbg, ">>> prio event {:?}", e);
             }
         }
 
@@ -418,7 +444,7 @@ const APP: () = {
      */
     #[task(schedule = [sense_task], resources = [itm, analog, queue])]
     fn sense_task() {
-        let _d = &mut resources.itm.stim[0];
+        let _dbg = &mut resources.itm.stim[0];
         let adc = &mut resources.analog;
         let eq = &mut resources.queue;
 
@@ -445,14 +471,24 @@ const APP: () = {
      * Power: task checking battery, dock station and charger plug
      *
      */
-    #[task(schedule = [power_task], resources = [dock, charger, queue])]
+    #[task(schedule = [power_task], resources = [itm, dock, charger, battery, analog, queue])]
     fn power_task() {
+        let _dbg = &mut resources.itm.stim[0];
         let c = resources.charger.is_high().unwrap_or(false);
+        let b = resources.battery.is_high().unwrap_or(false);
         let d = resources.dock.is_high().unwrap_or(false);
+        let adc = &mut resources.analog;
         let eq = &mut resources.queue;
 
-        eq.push(Events::ChargerEvent(c)).ok();
-        eq.push(Events::DockEvent(d)).ok();
+        eq.push(Events::Charger(c)).ok();
+        eq.push(Events::Dock(d)).ok();
+        eq.push(Events::Battery(b)).ok();
+
+        if let Ok(batt) = adc.get_battery() {
+            if is_battery_low(batt.voltage) {
+                eq.push(Events::BatteryLow).ok();
+            }
+        }
 
         schedule
             .power_task(scheduled + POWER_PERIOD.cycles())
@@ -463,7 +499,7 @@ const APP: () = {
     fn EXTI1() {
         let pressed = resources.button.is_low().unwrap_or(false);
         let eq = &mut resources.queue;
-        let e = Events::ButtonEvent(pressed);
+        let e = Events::Button(pressed);
 
         resources.screen.print_num(0000).ok();
         resources.exti.pr.modify(|_, w| w.pr1().set_bit());
@@ -474,22 +510,29 @@ const APP: () = {
     fn EXTI4() {
         let plugged = resources.charger.is_high().unwrap_or(false);
         let eq = &mut resources.queue;
-        let e = Events::ChargerEvent(plugged);
+        let e = Events::Charger(plugged);
 
         resources.screen.print_num(1111).ok();
         resources.exti.pr.modify(|_, w| w.pr4().set_bit());
         eq.push(e).ok();
     }
 
-    #[interrupt(resources = [exti, screen, accel, dock, queue])]
+    #[interrupt(resources = [exti, screen, accel, dock, battery, queue])]
     fn EXTI9_5() {
         let eq = &mut resources.queue;
         let r = resources.exti.pr.read();
 
         if r.pr5().bit_is_set() {
-            let dock = resources.dock.is_high().unwrap_or(false);
-            let e = Events::DockEvent(dock);
-            resources.exti.pr.modify(|_, w| w.pr4().set_bit());
+            let d = resources.dock.is_high().unwrap_or(false);
+            let e = Events::Dock(d);
+            resources.exti.pr.modify(|_, w| w.pr5().set_bit());
+            eq.push(e).ok();
+        }
+
+        if r.pr6().bit_is_set() {
+            let b = resources.battery.is_high().unwrap_or(false);
+            let e = Events::Battery(b);
+            resources.exti.pr.modify(|_, w| w.pr6().set_bit());
             eq.push(e).ok();
         }
 
@@ -503,7 +546,7 @@ const APP: () = {
             let x = info.wake_up_x_negative | info.wake_up_x_positive;
             let y = info.wake_up_y_negative | info.wake_up_y_positive;
             let z = info.wake_up_z_negative | info.wake_up_z_positive;
-            let e = Events::AccEvent(x, y, z);
+            let e = Events::Accel(x, y, z);
 
             resources.screen.print_num(2222).ok();
             resources.accel.clear_interrupts().unwrap();
@@ -527,4 +570,8 @@ const APP: () = {
 
 fn is_obstacle(v1: u16, v2: u16) -> bool {
     (v1 > v2 + 50) | (v2 > v1 + 50)
+}
+
+fn is_battery_low(v: u32) -> bool {
+    v < 15000
 }
