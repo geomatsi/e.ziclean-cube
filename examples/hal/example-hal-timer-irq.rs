@@ -1,19 +1,16 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use cortex_m_rt::entry;
+use cortex_m_rt::exception;
 
-extern crate cortex_m as cm;
 use cm::interrupt::Mutex;
 use cm::iprintln;
 use cm::peripheral::syst::SystClkSource;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate stm32f1xx_hal as hal;
 use core::cell::RefCell;
 use core::ops::DerefMut;
 use hal::prelude::*;
@@ -21,6 +18,7 @@ use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::Event;
 use hal::timer::Timer;
+use stm32f1xx_hal as hal;
 
 static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
 static G_TIM2: Mutex<RefCell<Option<Timer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
@@ -88,16 +86,6 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
         nvic.set_priority(stm32::Interrupt::TIM3, 1);
         nvic.set_priority(stm32::Interrupt::TIM4, 1);
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }
 
 #[interrupt]

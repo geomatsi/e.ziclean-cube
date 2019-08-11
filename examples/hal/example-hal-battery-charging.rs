@@ -1,15 +1,14 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::InputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
 use stm32f1xx_hal::gpio::gpiob::PB10;
 use stm32f1xx_hal::gpio::{Alternate, PushPull};
@@ -60,7 +59,6 @@ fn main() -> ! {
 
     // ADC1 setup
     let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
-    let adc_max_range: u16 = adc.max_sample();
 
     // TIM2 PWM setup
     let mut charger = p.TIM2.pwm(
@@ -77,7 +75,7 @@ fn main() -> ! {
 
     // make sure that battery is connected
 
-    while !batt.is_high() {
+    while !batt.is_high().unwrap() {
         iprintln!(d, "Battery not connected...");
         delay(10000);
     }
@@ -87,7 +85,7 @@ fn main() -> ! {
     // make sure charger is connected
 
     loop {
-        while !plug.is_high() && !base.is_high() {
+        while !plug.is_high().unwrap() && !base.is_high().unwrap() {
             iprintln!(d, "Charger not connected...");
         }
 
@@ -114,7 +112,7 @@ fn main() -> ! {
             iprintln!(d, "V_bat: {} mV; V_shunt {} mV", v_bat, v_shunt);
             delay(1000);
 
-            if !plug.is_high() && !base.is_high() {
+            if !plug.is_high().unwrap() && !base.is_high().unwrap() {
                 iprintln!(d, "Charger disconnected: stop charging!");
                 charger.disable();
                 break;
@@ -127,14 +125,4 @@ fn delay(count: u32) {
     for _ in 0..count {
         cm::asm::nop();
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

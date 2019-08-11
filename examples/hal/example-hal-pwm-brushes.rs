@@ -1,15 +1,12 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use cortex_m_rt::entry;
 
-extern crate cortex_m as cm;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
 use stm32f1xx_hal::{prelude::*, stm32};
 
@@ -42,16 +39,15 @@ fn main() -> ! {
 
     let mut delay = Delay::new(core.SYST, clocks);
     let mut afio = p.AFIO.constrain(&mut rcc.apb2);
+    let gpioa = p.GPIOA.split(&mut rcc.apb2);
     let mut gpiob = p.GPIOB.split(&mut rcc.apb2);
 
-    // Configure NJTRST as PB4: full SWD/JTAG w/o NJTRST
-    afio.mapr
-        .mapr()
-        .modify(|_, w| unsafe { w.swj_cfg().bits(0b001) });
+    // Use this to configure NJTRST as PB4
+    let (_pa15, _pb3, pb4) = afio.mapr.disable_jtag(gpioa.pa15, gpiob.pb3, gpiob.pb4);
 
     // TIM3: CH1 (pump), CH2 (all 3 brushes)
 
-    let p1 = gpiob.pb4.into_alternate_push_pull(&mut gpiob.crl);
+    let p1 = pb4.into_alternate_push_pull(&mut gpiob.crl);
     let p2 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
     let (mut pump, mut brushes) = p.TIM3.pwm(
@@ -91,14 +87,4 @@ fn main() -> ! {
             delay.delay_ms(5_000_u16)
         }
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

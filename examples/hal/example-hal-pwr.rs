@@ -1,15 +1,14 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::InputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
@@ -70,9 +69,9 @@ fn main() -> ! {
         iprintln!(
             d,
             "PLUG: {}, BASE: {}, BATTERY: {}",
-            plug.is_high(),
-            base.is_high(),
-            batt.is_high()
+            plug.is_high().unwrap(),
+            base.is_high().unwrap(),
+            batt.is_high().unwrap()
         );
 
         delay(10000);
@@ -83,14 +82,4 @@ fn delay(count: u32) {
     for _ in 0..count {
         cm::asm::nop();
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

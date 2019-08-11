@@ -1,21 +1,20 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::OutputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::interrupt::Mutex;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate stm32f1xx_hal as hal;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use stm32f1xx_hal as hal;
 
 use core::cell::RefCell;
 use core::ops::DerefMut;
@@ -43,7 +42,7 @@ fn main() -> ! {
 
             // PD13: GPIO open-drain output: IR LEDs for both main motors encodersd, active low
             let mut pd13 = gpiod.pd13.into_open_drain_output(&mut gpiod.crh);
-            pd13.set_low();
+            pd13.set_low().unwrap();
 
             // PC12, PE8: GPIO floating input: IR diodes for both main motors encoders
             gpioc.pc12.into_floating_input(&mut gpioc.crh);
@@ -105,16 +104,6 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 
     cm::peripheral::NVIC::unpend(stm32::Interrupt::EXTI9_5);
     cm::peripheral::NVIC::unpend(stm32::Interrupt::EXTI15_10);
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }
 
 #[interrupt]

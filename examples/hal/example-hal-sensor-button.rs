@@ -1,21 +1,18 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use cortex_m_rt::entry;
 
-extern crate cortex_m as cm;
 use cm::interrupt::Mutex;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate stm32f1xx_hal as hal;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use stm32f1xx_hal as hal;
 
 use core::cell::RefCell;
 use core::ops::DerefMut;
@@ -94,16 +91,6 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     }
 
     cm::peripheral::NVIC::unpend(stm32::Interrupt::EXTI1);
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }
 
 #[interrupt]

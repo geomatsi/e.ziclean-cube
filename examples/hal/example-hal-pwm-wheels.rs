@@ -1,15 +1,14 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::OutputPin;
 
-extern crate cortex_m as cm;
-extern crate panic_semihosting;
+use cortex_m_rt::entry;
 
-extern crate cortex_m_semihosting;
+use cortex_m as cm;
+
+use panic_semihosting as _;
+
 use cortex_m_semihosting::hprintln;
 
 use stm32f1xx_hal::{prelude::*, stm32};
@@ -46,10 +45,10 @@ fn main() -> ! {
     //  _________________________
 
     let mut left_fwd = gpiod.pd2.into_open_drain_output(&mut gpiod.crl);
-    left_fwd.set_low();
+    left_fwd.set_low().unwrap();
 
     let mut left_rev = gpiod.pd5.into_open_drain_output(&mut gpiod.crl);
-    left_rev.set_low();
+    left_rev.set_low().unwrap();
 
     // NOTE: it looks like PE14 and PB11 are control signal of
     // SR-latch circuitry protecting H-bridge for right motor
@@ -66,10 +65,10 @@ fn main() -> ! {
     //  _________________________
 
     let mut right_fwd = gpioe.pe14.into_open_drain_output(&mut gpioe.crh);
-    right_fwd.set_low();
+    right_fwd.set_low().unwrap();
 
     let mut right_rev = gpiob.pb11.into_open_drain_output(&mut gpiob.crh);
-    right_rev.set_low();
+    right_rev.set_low().unwrap();
 
     // TIM4
 
@@ -101,8 +100,8 @@ fn main() -> ! {
 
     hprintln!("lets rock...").unwrap();
 
-    left_rev.set_high();
-    right_fwd.set_high();
+    left_rev.set_high().unwrap();
+    right_fwd.set_high().unwrap();
 
     loop {
         for s in 0..duty.len() {
@@ -115,11 +114,11 @@ fn main() -> ! {
             delay(20000);
         }
 
-        left_rev.toggle();
-        left_fwd.toggle();
+        left_rev.toggle().unwrap();
+        left_fwd.toggle().unwrap();
 
-        right_rev.toggle();
-        right_fwd.toggle();
+        right_rev.toggle().unwrap();
+        right_fwd.toggle().unwrap();
     }
 }
 
@@ -127,14 +126,4 @@ fn delay(count: u32) {
     for _ in 0..count {
         cm::asm::nop();
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

@@ -1,15 +1,12 @@
 #![no_std]
 #![no_main]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use cortex_m_rt::entry;
 
 extern crate cortex_m as cm;
 use cm::iprintln;
 
-extern crate panic_itm;
+use panic_itm as _;
 
 use bitbang_hal;
 
@@ -39,7 +36,7 @@ fn main() -> ! {
 
     let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
     let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
-    let irq = gpioe.pe9.into_floating_input(&mut gpioe.crh);
+    gpioe.pe9.into_floating_input(&mut gpioe.crh);
 
     // TIM2 is used for charging, TIM3 for brushes, TIM4 for wheels
     // FIXME: need more timers in stm32f1xx_hal
@@ -83,14 +80,4 @@ fn main() -> ! {
             za / 10.0
         );
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

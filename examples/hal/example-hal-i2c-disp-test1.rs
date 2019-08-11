@@ -1,24 +1,22 @@
 #![no_std]
 #![no_main]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::OutputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate bitbang_hal;
+use bitbang_hal;
 use bitbang_hal::spi::BitOrder;
 use bitbang_hal::spi::MODE_3;
 
 use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
 
-extern crate nb;
 use nb::block;
 
 #[entry]
@@ -54,23 +52,23 @@ fn main() -> ! {
     spi.set_bit_order(BitOrder::LSBFirst);
 
     iprintln!(dbg, "start... wait 1 sec...");
-    stb.set_high();
+    stb.set_high().unwrap();
     block!(delay.wait()).ok();
 
     // display mode setting: 7 grids, 11 segments
-    stb.set_low();
+    stb.set_low().unwrap();
     block!(spi.send(0b0000_0011)).unwrap();
-    stb.set_high();
+    stb.set_high().unwrap();
 
     // data setting: normal mode, fixed addr, write data to display
-    stb.set_low();
+    stb.set_low().unwrap();
     block!(spi.send(0b0100_0100)).unwrap();
-    stb.set_high();
+    stb.set_high().unwrap();
 
     // display control: display ON, PWM 13/16
-    stb.set_low();
+    stb.set_low().unwrap();
     block!(spi.send(0b1000_1010)).unwrap();
-    stb.set_high();
+    stb.set_high().unwrap();
 
     // e.ziclean display connected to TM1668 so that address byte varies
     // while data byte is fixes for each grid
@@ -139,10 +137,10 @@ fn main() -> ! {
 
     loop {
         for i in 0..7 {
-            stb.set_low();
+            stb.set_low().unwrap();
             block!(spi.send(0b1100_0000 | addr[i])).unwrap();
             block!(spi.send(0b0000_0000)).unwrap();
-            stb.set_high();
+            stb.set_high().unwrap();
         }
 
         iprintln!(dbg, "clean");
@@ -150,14 +148,14 @@ fn main() -> ! {
 
         for n in 0..10 {
             for i in 0..7 {
-                stb.set_low();
+                stb.set_low().unwrap();
                 block!(spi.send(0b1100_0000 | addr[i])).unwrap();
                 let data = (grid1 * sym1[n][i])
                     | (grid2 * sym2[9 - n][i])
                     | (grid3 * sym3[9 - n][i])
                     | (grid4 * sym4[n][i]);
                 block!(spi.send(data)).unwrap();
-                stb.set_high();
+                stb.set_high().unwrap();
             }
 
             iprintln!(dbg, "sym: {}", n);
@@ -167,14 +165,4 @@ fn main() -> ! {
         iprintln!(dbg, "done");
         block!(delay.wait()).ok();
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

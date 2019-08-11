@@ -1,18 +1,14 @@
 #![no_std]
 #![no_main]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use cortex_m_rt::entry;
 
-extern crate cortex_m as cm;
 use cm::interrupt::Mutex;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate stm32f1xx_hal as hal;
 use hal::device::{TIM2, TIM3};
 use hal::gpio::gpiob::PB2;
 use hal::gpio::gpioe::PE7;
@@ -21,17 +17,17 @@ use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::Timer;
+use stm32f1xx_hal as hal;
 
-extern crate bitbang_hal;
+use bitbang_hal;
 use bitbang_hal::i2c::I2cBB;
 
-extern crate kxcj9;
+use kxcj9;
 use kxcj9::ic::G8Device;
 use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
 use kxcj9::{InterruptPinLatching, InterruptPinPolarity};
 use kxcj9::{WakeUpInterruptConfig, WakeUpOutputDataRate, WakeUpTriggerMotion};
 
-extern crate nb;
 use nb::block;
 
 use core::cell::RefCell;
@@ -150,16 +146,6 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     }
 
     cm::peripheral::NVIC::unpend(stm32::Interrupt::EXTI9_5);
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }
 
 #[interrupt]

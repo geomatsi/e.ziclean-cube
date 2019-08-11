@@ -1,15 +1,14 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::OutputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
@@ -56,11 +55,9 @@ fn main() -> ! {
 
     // PC7: GPIO push-pull output: enable IR LEDs of all the front sensors
     let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-    front_leds.set_high();
 
     // PD9: push-pull output: enable IR LEDs of all 3 floor sensors
     let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-    bottom_leds.set_high();
 
     // ADC setup
     let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
@@ -81,12 +78,14 @@ fn main() -> ! {
     loop {
         //let data: u16 = adc.read(&mut ch8).unwrap();
 
+        front_leds.set_low().unwrap();
         let sll: u16 = adc.read(&mut front_left_90).unwrap();
         let slc: u16 = adc.read(&mut front_left_45).unwrap();
         let scc: u16 = adc.read(&mut front_center).unwrap();
         let src: u16 = adc.read(&mut front_right_45).unwrap();
         let srr: u16 = adc.read(&mut front_right_90).unwrap();
 
+        bottom_leds.set_low().unwrap();
         let sl: u16 = adc.read(&mut bottom_left).unwrap();
         let sc: u16 = adc.read(&mut bottom_center).unwrap();
         let sr: u16 = adc.read(&mut bottom_right).unwrap();
@@ -104,7 +103,34 @@ fn main() -> ! {
             max_range - sr
         );
 
-        delay(100);
+        front_leds.set_high().unwrap();
+        let sll: u16 = adc.read(&mut front_left_90).unwrap();
+        let slc: u16 = adc.read(&mut front_left_45).unwrap();
+        let scc: u16 = adc.read(&mut front_center).unwrap();
+        let src: u16 = adc.read(&mut front_right_45).unwrap();
+        let srr: u16 = adc.read(&mut front_right_90).unwrap();
+        front_leds.set_low().unwrap();
+
+        bottom_leds.set_high().unwrap();
+        let sl: u16 = adc.read(&mut bottom_left).unwrap();
+        let sc: u16 = adc.read(&mut bottom_center).unwrap();
+        let sr: u16 = adc.read(&mut bottom_right).unwrap();
+        bottom_leds.set_low().unwrap();
+
+        iprintln!(
+            d,
+            "front: ({},{},{},{},{})     bottom: ({},{},{})\n",
+            max_range - sll,
+            max_range - slc,
+            max_range - scc,
+            max_range - src,
+            max_range - srr,
+            max_range - sl,
+            max_range - sc,
+            max_range - sr
+        );
+
+        delay(2000);
     }
 }
 
@@ -112,14 +138,4 @@ fn delay(count: u32) {
     for _ in 0..count {
         cm::asm::nop();
     }
-}
-
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
 }

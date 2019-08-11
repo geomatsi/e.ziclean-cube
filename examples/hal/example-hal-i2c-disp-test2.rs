@@ -7,6 +7,8 @@ use rt::entry;
 use cm::iprintln;
 use cortex_m as cm;
 
+use bitbang_hal as bb;
+
 use eziclean::display;
 use nb::block;
 use panic_itm as _;
@@ -42,11 +44,14 @@ fn main() -> ! {
     let timer = Timer::tim2(p.TIM2, 200.khz(), clocks, &mut rcc.apb1);
     let mut delay = Timer::tim3(p.TIM3, 2.hz(), clocks, &mut rcc.apb1);
 
-    let mut screen = display::Display::init(stb, dio, clk, tmp, timer);
+    let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, timer);
+    spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
+
+    let mut screen = display::Display::init(spi, stb);
 
     loop {
         iprintln!(dbg, "clean");
-        screen.clear();
+        screen.clear().unwrap();
         block!(delay.wait()).ok();
 
         for i in 0..10 {

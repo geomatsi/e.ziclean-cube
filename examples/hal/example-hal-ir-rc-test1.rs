@@ -1,21 +1,20 @@
 #![no_main]
 #![no_std]
 
-extern crate cortex_m_rt as rt;
-use rt::entry;
-use rt::exception;
-use rt::ExceptionFrame;
+use embedded_hal::digital::v2::OutputPin;
 
-extern crate cortex_m as cm;
+use cortex_m_rt::entry;
+
 use cm::interrupt::Mutex;
 use cm::iprintln;
+use cortex_m as cm;
 
-extern crate panic_itm;
+use panic_itm as _;
 
-extern crate stm32f1xx_hal as hal;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use stm32f1xx_hal as hal;
 
 use core::cell::RefCell;
 use core::ops::DerefMut;
@@ -61,7 +60,11 @@ fn main() -> ! {
             // ?????
             // In fact diodes are powered regardless of PE12 level.
             // Reconstructed schematics looks reasonable, so not yet sure what is wrong...
-            gpioe.pe12.into_open_drain_output(&mut gpioe.crh).set_high();
+            gpioe
+                .pe12
+                .into_open_drain_output(&mut gpioe.crh)
+                .set_high()
+                .unwrap();
 
             let mut afio = dp.AFIO.constrain(&mut rcc.apb2);
 
@@ -131,16 +134,6 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     cm::peripheral::NVIC::unpend(stm32::Interrupt::EXTI15_10);
 }
 
-#[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("HardFault at {:#?}", ef);
-}
-
-#[exception]
-fn DefaultHandler(irqn: i16) {
-    panic!("Unhandled exception (IRQn = {})", irqn);
-}
-
 #[interrupt]
 fn EXTI15_10() {
     cm::interrupt::free(|cs| {
@@ -151,8 +144,8 @@ fn EXTI15_10() {
             let d = &mut itm.stim[0];
             let mut t = 0;
             let mut l = 0;
-            let mut f = 0;
             let mut r = 0;
+            let f = 0;
 
             let reg = exti.pr.read();
 
