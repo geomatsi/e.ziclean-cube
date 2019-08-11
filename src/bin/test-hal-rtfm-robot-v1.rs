@@ -3,10 +3,11 @@
 // - straightforward dummy logic for avoiding obstacles
 // - trivial 'step' obstacle check using IR sensor input from ADC
 
-#![allow(deprecated)]
 #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
+
+use embedded_hal::digital::v2::OutputPin;
 
 use cm::iprintln;
 use cortex_m as cm;
@@ -91,13 +92,13 @@ const APP: () = {
 
         /* IR LEDs for obstacle sensors */
 
-        // PC7: GPIO push-pull output: enable IR LEDs of all the front sensors
+        // PC7: GPIO push-pull output: configure and disable IR LEDs of all the front sensors
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
-        front_leds.set_high();
+        front_leds.set_low().unwrap();
 
-        // PD9: push-pull output: enable IR LEDs of all 3 floor sensors
+        // PD9: push-pull output: configure and disable IR LEDs of all 3 floor sensors
         let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
-        bottom_leds.set_high();
+        bottom_leds.set_low().unwrap();
 
         /* Analog measurements */
 
@@ -112,14 +113,14 @@ const APP: () = {
         let ch10 = gpioc.pc0.into_analog(&mut gpioc.crl);
         let ch15 = gpioc.pc5.into_analog(&mut gpioc.crl);
 
-        a.init_front_sensors(ch10, ch4, ch6, ch15, ch8);
+        a.init_front_sensors(front_leds, ch10, ch4, ch6, ch15, ch8);
 
         // bottom sensor channels
         let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
         let ch7 = gpioa.pa7.into_analog(&mut gpioa.crl);
         let ch9 = gpiob.pb1.into_analog(&mut gpiob.crl);
 
-        a.init_bottom_sensors(ch11, ch7, ch9);
+        a.init_bottom_sensors(bottom_leds, ch11, ch7, ch9);
 
         /* configure and start TIM2 periodic timer */
 
@@ -153,8 +154,8 @@ const APP: () = {
         let dbg = &mut resources.itm.stim[0];
         let max_range: u16 = resources.analog.get_max_sample();
 
-        let front = resources.analog.get_front_sensors().unwrap();
-        let bottom = resources.analog.get_bottom_sensors().unwrap();
+        let front = resources.analog.get_front_sensors(true).unwrap();
+        let bottom = resources.analog.get_bottom_sensors(true).unwrap();
 
         iprintln!(
             dbg,
