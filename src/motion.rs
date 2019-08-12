@@ -1,7 +1,6 @@
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
-
-use super::*;
+use stm32f1xx_hal as hal;
 
 // left wheel gear control
 type LeftWheelRevGear = hal::pwm::Pwm<hal::device::TIM4, hal::pwm::C1>;

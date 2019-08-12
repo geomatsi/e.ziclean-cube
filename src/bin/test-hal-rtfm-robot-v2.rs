@@ -19,7 +19,7 @@ use hal::gpio;
 use hal::gpio::{OpenDrain, Output};
 use hal::prelude::*;
 use hal::stm32;
-use hal::timer;
+use hal::time::*;
 use stm32f1xx_hal as hal;
 
 use bitbang_hal as bb;
@@ -28,6 +28,7 @@ use eziclean::adc::Analog;
 use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::Motion;
+use eziclean::poll_timer::PollTimer;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
@@ -41,9 +42,6 @@ use nb;
 
 /* Types */
 
-type Tmr2Type = timer::Timer<stm32::TIM2>;
-type Tmr3Type = timer::Timer<stm32::TIM3>;
-
 type ButtonGpioType = gpio::gpiod::PD1<hal::gpio::Input<hal::gpio::Floating>>;
 type ChargerGpioType = gpio::gpioe::PE4<hal::gpio::Input<hal::gpio::Floating>>;
 type DockGpioType = gpio::gpioe::PE5<hal::gpio::Input<hal::gpio::Floating>>;
@@ -53,11 +51,11 @@ type SpiStbType = gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiDioType = gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiClkType = gpio::gpioc::PC8<hal::gpio::Output<hal::gpio::PushPull>>;
 type SpiTmpType = gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
-type SpiScreen = bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, Tmr2Type>;
+type SpiScreen = bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, PollTimer>;
 
 type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
-type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, Tmr3Type>;
+type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
 
 /* */
 
@@ -94,7 +92,7 @@ const APP: () = {
     // Accelerometer
     static mut accel: Kxcj9<I2cAccel, G8Device> = ();
 
-    #[init(schedule = [proc_task, sense_task, power_task])]
+    #[init(schedule = [proc_task, sense_task, power_task, init_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -293,82 +291,73 @@ const APP: () = {
         device.EXTI.ftsr.modify(|_, w| w.tr6().set_bit());
 
         /*
-         * Display
+         * Display and Accelerometer
          *
+         * Note: there is no spare hardware timers on device:
+         * - TIM2 for charging
+         * - TIM3 for brushes
+         * - TIM4 for main motors
+         *
+         * Two more timers are needed for accelerometer/display bit-bang i2c/spi. It is possible
+         * to use TIM2 in active mode since charging is not needed during normal operations.
+         * However rather than sharing TIM2 using some kind of shared_bus approach, here we use
+         * simple blocking PollTimer based on SysTick. In fact PollTimer is a delay implementation
+         * based on rtfm::Instant.
+         *
+         * Note that this delay is coarse, since interrupts are not disabled and wait loop can be
+         * preempted by any interrupt. This is ok for our use-case though:
+         * - we don't want to disable interrupts: need to watch for obstacles
+         * - I2C and SPI of the devices in use are fairly tolerant to relaxed clock timings
+         *
+         * One more note regarding the use of PollTimer. RTFM enables SysTick after init.
+         * So in init method there is no way to use PollTimer. That is why here in init method both
+         * accelerometer and display handlers are created, but their actual enablement, that
+         * requires I2C/SPI communication, is postponed to special s/w task scheduled immediately
+         * after SysTick is disabled.
+         *
+         * This approach should be carefully checked for races. E.g. peripherals (display) may be
+         * accessed from other interrupt handlers before post-init task is called.
+         * For the peripherals in question (accelerometer and display) this does not lead to any
+         * issues.
          */
 
-        // FIXME: for now use TIM2 exclusively for display, however it should be shared with accel
-        let tim2 = timer::Timer::tim2(device.TIM2, 200.khz(), clocks, &mut rcc.apb1);
+        // Display
 
         let tmp = gpioe.pe15.into_floating_input(&mut gpioe.crh);
         let clk = gpioc.pc8.into_push_pull_output(&mut gpioc.crh);
         let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
         let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
-        let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, tim2);
+        let disp_tmr = PollTimer::init(8.mhz(), 200.khz());
+        let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, disp_tmr);
         spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
 
-        let d = Display::init(spi, stb);
+        let scr = Display::new(spi, stb);
 
-        /*
-         * Accelerometer
-         *
-         */
+        // Accelerometer
 
-        // FIXME: for now use TIM3 for accel, but it is used for brushes PWM
-        // NOTE: in release build mode decrease clock to 50kHz
-        let tim3 = timer::Timer::tim3(device.TIM3, 50.khz(), clocks, &mut rcc.apb1);
+        afio.exticr3
+            .exticr3()
+            .modify(|_, w| unsafe { w.exti9().bits(0b0100) });
+
+        device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
 
         let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
         let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
         let _irq = gpioe.pe9.into_floating_input(&mut gpioe.crh);
 
-        // select PE9 as source input for line EXTI9
-        afio.exticr3
-            .exticr3()
-            .modify(|_, w| unsafe { w.exti9().bits(0b0100) });
-
-        // enable EXTI9 and configure interrupt on rising edge
-        device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
-
-        let i2c = bb::i2c::I2cBB::new(scl, sda, tim3);
+        // NOTE: in release build mode decrease clock to 50kHz
+        let acc_tmr = PollTimer::init(8.mhz(), 50.khz());
+        let i2c = bb::i2c::I2cBB::new(scl, sda, acc_tmr);
         let address = SlaveAddr::Alternative(true);
-
-        let mut acc = Kxcj9::new_kxcj9_1008(i2c, address);
-
-        nb::block!(acc.reset()).ok();
-        acc.enable().unwrap();
-        acc.set_scale(GScale8::G2).unwrap();
-        acc.set_resolution(Resolution::Low).unwrap();
-
-        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
-            .unwrap();
-        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
-            .unwrap();
-        acc.enable_interrupt_pin().unwrap();
-
-        let config = WakeUpInterruptConfig {
-            trigger_motion: WakeUpTriggerMotion {
-                x_negative: true,
-                x_positive: true,
-                y_negative: true,
-                y_positive: true,
-                z_negative: true,
-                z_positive: true,
-            },
-            data_rate: WakeUpOutputDataRate::Hz25,
-            fault_count: 1,
-            threshold: 0.5,
-        };
-
-        acc.enable_wake_up_interrupt(config).unwrap();
+        let acc = Kxcj9::new_kxcj9_1008(i2c, address);
 
         /*
-         * schedule periodic tasks
+         * schedule tasks
          *
          */
-
+        schedule.init_task(Instant::now()).unwrap();
         schedule
             .proc_task(Instant::now() + PROC_PERIOD.cycles())
             .unwrap();
@@ -389,7 +378,7 @@ const APP: () = {
         exti = device.EXTI;
         analog = a;
         drive = m;
-        screen = d;
+        screen = scr;
         accel = acc;
         dock = dock;
         button = button;
@@ -435,6 +424,49 @@ const APP: () = {
         schedule
             .proc_task(scheduled + PROC_PERIOD.cycles())
             .unwrap();
+    }
+
+    /*
+     * Late init task: accelerometer and display
+     *
+     */
+
+    #[task(resources = [itm, screen, accel])]
+    fn init_task() {
+        let _dbg = &mut resources.itm.stim[0];
+        let mut scr = resources.screen;
+        let mut acc = resources.accel;
+
+        // init display
+        scr.enable().unwrap();
+
+        // init accelerometer
+        nb::block!(acc.reset()).ok();
+        acc.enable().unwrap();
+        acc.set_scale(GScale8::G2).unwrap();
+        acc.set_resolution(Resolution::Low).unwrap();
+
+        acc.set_interrupt_pin_polarity(InterruptPinPolarity::ActiveHigh)
+            .unwrap();
+        acc.set_interrupt_pin_latching(InterruptPinLatching::Latching)
+            .unwrap();
+        acc.enable_interrupt_pin().unwrap();
+
+        let config = WakeUpInterruptConfig {
+            trigger_motion: WakeUpTriggerMotion {
+                x_negative: true,
+                x_positive: true,
+                y_negative: true,
+                y_positive: true,
+                z_negative: true,
+                z_positive: true,
+            },
+            data_rate: WakeUpOutputDataRate::Hz25,
+            fault_count: 1,
+            threshold: 0.5,
+        };
+
+        acc.enable_wake_up_interrupt(config).unwrap();
     }
 
     /*

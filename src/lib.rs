@@ -1,9 +1,7 @@
 #![no_std]
 
-use nb;
-use stm32f1xx_hal as hal;
-
 pub mod adc;
 pub mod display;
 pub mod events;
 pub mod motion;
+pub mod poll_timer;

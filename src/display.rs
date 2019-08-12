@@ -1,9 +1,6 @@
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::spi;
-
 use nb::block;
-
-use super::*;
 
 /// Display
 pub struct Display<SPI, STB>
@@ -39,7 +36,7 @@ where
     SPI: spi::FullDuplex<u8>,
     STB: OutputPin,
 {
-    pub fn init(spi: SPI, stb: STB) -> Self {
+    pub fn new(spi: SPI, stb: STB) -> Self {
         // e.ziclean display connected to TM1668 so that address byte varies
         // while data byte is fixes for each grid
         let addr = [0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc];
@@ -97,24 +94,26 @@ where
             ],
         ];
 
-        let mut disp = Display {
+        Display {
             spi,
             stb,
             addr,
             grid,
             sym,
-        };
+        }
+    }
 
+    pub fn enable(&mut self) -> Result<(), Error> {
         // display mode setting: 7 grids, 11 segments
-        disp.write(0b0000_0011).ok();
-
+        self.write(0b0000_0011)?;
         // data setting: normal mode, fixed addr, write data to display
-        disp.write(0b0100_0100).ok();
-
+        self.write(0b0100_0100)?;
         // display control: display ON, PWM 13/16
-        disp.write(0b1000_1010).ok();
+        self.write(0b1000_1010)?;
+        // clear
+        self.clear()?;
 
-        disp
+        Ok(())
     }
 
     fn write(&mut self, data: u8) -> Result<(), Error> {

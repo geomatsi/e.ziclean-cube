@@ -1,7 +1,6 @@
 use embedded_hal::adc::OneShot;
 use embedded_hal::digital::v2::OutputPin;
-
-use super::*;
+use stm32f1xx_hal as hal;
 
 // ADC1
 type ADC = hal::adc::Adc<hal::stm32::ADC1>;
