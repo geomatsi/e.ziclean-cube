@@ -19,7 +19,7 @@ use hal::gpio;
 use hal::gpio::{OpenDrain, Output};
 use hal::prelude::*;
 use hal::stm32;
-use hal::time::*;
+use hal::timer::Timer;
 use stm32f1xx_hal as hal;
 
 use bitbang_hal as bb;
@@ -135,12 +135,10 @@ const APP: () = {
         let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-        let pwm = device.TIM4.pwm(
+        let pwm = Timer::tim4(device.TIM4, &clocks, &mut rcc.apb1).pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
             500.hz(),
-            clocks,
-            &mut rcc.apb1,
         );
 
         let mut m = Motion::init(
@@ -293,7 +291,7 @@ const APP: () = {
         /*
          * Display and Accelerometer
          *
-         * Note: there is no spare hardware timers on device:
+         * Note: there are no spare hardware timers on device:
          * - TIM2 for charging
          * - TIM3 for brushes
          * - TIM4 for main motors
