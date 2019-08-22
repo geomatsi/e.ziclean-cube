@@ -25,6 +25,7 @@ use stm32f1xx_hal as hal;
 use bitbang_hal as bb;
 
 use eziclean::adc::Analog;
+use eziclean::beep::Beeper;
 use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::Motion;
@@ -56,6 +57,8 @@ type SpiScreen = bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, PollTimer>;
 type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
 type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
+
+type BeepGpioType = gpio::gpioe::PE0<hal::gpio::Output<hal::gpio::PushPull>>;
 
 /* */
 
@@ -91,6 +94,9 @@ const APP: () = {
 
     // Accelerometer
     static mut accel: Kxcj9<I2cAccel, G8Device> = ();
+
+    // Beeper
+    static mut beeper: Beeper<PollTimer, BeepGpioType> = ();
 
     #[init(schedule = [proc_task, sense_task, power_task, init_task])]
     fn init() {
@@ -289,6 +295,15 @@ const APP: () = {
         device.EXTI.ftsr.modify(|_, w| w.tr6().set_bit());
 
         /*
+         * Beeper
+         *
+         */
+
+        let pe0 = gpioe.pe0.into_push_pull_output(&mut gpioe.crl);
+        let beep_tmr = PollTimer::init(8.mhz(), 10.hz());
+        let beeper = Beeper::create(beep_tmr, pe0);
+
+        /*
          * Display and Accelerometer
          *
          * Note: there are no spare hardware timers on device:
@@ -382,6 +397,7 @@ const APP: () = {
         button = button;
         charger = charger;
         battery = battery;
+        beeper = beeper;
     }
 
     /*
