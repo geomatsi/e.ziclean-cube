@@ -16,9 +16,11 @@ use rtfm::Instant;
 
 use hal::adc;
 use hal::gpio;
-use hal::gpio::{OpenDrain, Output};
+use hal::gpio::{Alternate, Floating, Input, OpenDrain, Output, PushPull};
 use hal::prelude::*;
+use hal::pwm::{Pins, Pwm, C1, C2};
 use hal::stm32;
+use hal::stm32::TIM3;
 use hal::timer::Timer;
 use stm32f1xx_hal as hal;
 
@@ -26,6 +28,7 @@ use bitbang_hal as bb;
 
 use eziclean::adc::Analog;
 use eziclean::beep::Beeper;
+use eziclean::clean::Cleaner;
 use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::Motion;
@@ -43,22 +46,36 @@ use nb;
 
 /* Types */
 
-type ButtonGpioType = gpio::gpiod::PD1<hal::gpio::Input<hal::gpio::Floating>>;
-type ChargerGpioType = gpio::gpioe::PE4<hal::gpio::Input<hal::gpio::Floating>>;
-type DockGpioType = gpio::gpioe::PE5<hal::gpio::Input<hal::gpio::Floating>>;
-type BatteryGpioType = gpio::gpioe::PE6<hal::gpio::Input<hal::gpio::Floating>>;
+type ButtonGpioType = gpio::gpiod::PD1<Input<Floating>>;
+type ChargerGpioType = gpio::gpioe::PE4<Input<Floating>>;
+type DockGpioType = gpio::gpioe::PE5<Input<Floating>>;
+type BatteryGpioType = gpio::gpioe::PE6<Input<Floating>>;
 
-type SpiStbType = gpio::gpioa::PA11<hal::gpio::Output<hal::gpio::PushPull>>;
-type SpiDioType = gpio::gpiod::PD14<hal::gpio::Output<hal::gpio::PushPull>>;
-type SpiClkType = gpio::gpioc::PC8<hal::gpio::Output<hal::gpio::PushPull>>;
-type SpiTmpType = gpio::gpioe::PE15<hal::gpio::Input<hal::gpio::Floating>>;
+type SpiStbType = gpio::gpioa::PA11<Output<PushPull>>;
+type SpiDioType = gpio::gpiod::PD14<Output<PushPull>>;
+type SpiClkType = gpio::gpioc::PC8<Output<PushPull>>;
+type SpiTmpType = gpio::gpioe::PE15<Input<Floating>>;
 type SpiScreen = bb::spi::SPI<SpiTmpType, SpiDioType, SpiClkType, PollTimer>;
 
 type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
 type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
 
-type BeepGpioType = gpio::gpioe::PE0<hal::gpio::Output<hal::gpio::PushPull>>;
+type BeepGpioType = gpio::gpioe::PE0<Output<PushPull>>;
+
+struct Brushes(
+    gpio::gpiob::PB4<Alternate<PushPull>>,
+    gpio::gpiob::PB5<Alternate<PushPull>>,
+);
+
+impl Pins<TIM3> for Brushes {
+    const REMAP: u8 = 0b10;
+    const C1: bool = true;
+    const C2: bool = true;
+    const C3: bool = false;
+    const C4: bool = false;
+    type Channels = (Pwm<TIM3, C1>, Pwm<TIM3, C2>);
+}
 
 /* */
 
@@ -88,6 +105,9 @@ const APP: () = {
 
     // Motion control
     static mut drive: Motion = ();
+
+    // Cleaner control
+    static mut cleaner: Cleaner = ();
 
     // Display
     static mut screen: Display<SpiScreen, SpiStbType> = ();
@@ -304,6 +324,25 @@ const APP: () = {
         let beeper = Beeper::create(beep_tmr, pe0);
 
         /*
+         * Cleaner: brushes and pump
+         *
+         */
+
+        // Use this to configure NJTRST as PB4
+        let (_pa15, _pb3, pb4) = afio.mapr.disable_jtag(gpioa.pa15, gpiob.pb3, gpiob.pb4);
+
+        let pb4 = pb4.into_alternate_push_pull(&mut gpiob.crl);
+        let pb5 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
+
+        let (pump, brush) = Timer::tim3(device.TIM3, &clocks, &mut rcc.apb1).pwm(
+            Brushes(pb4, pb5),
+            &mut afio.mapr,
+            10.khz(),
+        );
+
+        let cleaner = Cleaner::create(brush, pump);
+
+        /*
          * Display and Accelerometer
          *
          * Note: there are no spare hardware timers on device:
@@ -398,6 +437,7 @@ const APP: () = {
         charger = charger;
         battery = battery;
         beeper = beeper;
+        cleaner = cleaner;
     }
 
     /*
