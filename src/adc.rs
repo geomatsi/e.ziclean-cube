@@ -123,7 +123,7 @@ pub struct Analog {
 }
 
 impl Analog {
-    pub fn init(adc: ADC, sample: hal::adc::AdcSampleTime) -> Self {
+    pub fn init(adc: ADC, sample: hal::adc::SampleTime) -> Self {
         let mut a = Analog {
             adc,
             front: None,

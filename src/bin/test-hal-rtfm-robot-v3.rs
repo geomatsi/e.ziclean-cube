@@ -70,8 +70,10 @@ type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
 
 type BeepGpioType = gpio::gpioe::PE0<Output<PushPull>>;
 
-type RdmaT = adc::AdcDma<AdcPins, Scan>;
-type RbufT = &'static mut [u16; 10];
+type AdcDmaType = adc::AdcDma<AdcPins, Scan>;
+type DmaBufType = &'static mut [u16; 10];
+type FrontSensorsBufType = &'static mut [u16; 5];
+type BottomSensorsBufType = &'static mut [u16; 3];
 
 /* structs */
 
@@ -120,6 +122,11 @@ impl Pins<TIM3> for Brushes {
     type Channels = (Pwm<TIM3, C1>, Pwm<TIM3, C2>);
 }
 
+pub enum AdcDmaCycle {
+    LedsOn,
+    LedsOff,
+}
+
 /* */
 
 const PROC_PERIOD: u32 = 400_000; /* 1/20 sec */
@@ -144,12 +151,16 @@ const APP: () = {
     static mut battery: BatteryGpioType = ();
 
     // analog readings using DMA
-    static mut xfr: Option<Transfer<W, RbufT, RdmaT>> = ();
-    static mut dma: Option<RdmaT> = ();
-    static mut buf: Option<RbufT> = ();
+    static mut xfr: Option<Transfer<W, DmaBufType, AdcDmaType>> = ();
+    static mut dma: Option<AdcDmaType> = ();
+    static mut buf: Option<DmaBufType> = ();
+    static mut cycle: AdcDmaCycle = ();
 
     static mut front_leds: FrontSensorLedType = ();
+    static mut front_buf: FrontSensorsBufType = ();
+
     static mut bottom_leds: BottomSensorLedType = ();
+    static mut bottom_buf: BottomSensorsBufType = ();
 
     // Motion control
     static mut drive: Motion = ();
@@ -229,9 +240,12 @@ const APP: () = {
          *
          */
 
-        // front sensors LEDs: setup and disable
+        // front sensors LEDs : setup and disable
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
         front_leds.set_low().unwrap();
+
+        // front sensors buffer
+        let front_buffer = singleton!(: [u16; 5] = [4095; 5]).unwrap();
 
         // front sensors channels
         let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
@@ -243,6 +257,9 @@ const APP: () = {
         // bottom sensors LEDs: setup and disable
         let mut bottom_leds = gpiod.pd9.into_push_pull_output(&mut gpiod.crh);
         bottom_leds.set_low().unwrap();
+
+        // front sensors buffer
+        let bottom_buffer = singleton!(: [u16; 3] = [4095; 3]).unwrap();
 
         // bottom sensor channels
         let ch11 = gpioc.pc1.into_analog(&mut gpioc.crl);
@@ -262,8 +279,8 @@ const APP: () = {
 
         // configure ADC+DMA
         let adc_pins = AdcPins(ch1, ch2, ch4, ch6, ch7, ch8, ch9, ch10, ch11, ch15);
-        let buffer = singleton!(: [u16; 10] = [0; 10]).unwrap();
         let adc_dma = adc.with_scan_dma(adc_pins, dma_ch1);
+        let buffer = singleton!(: [u16; 10] = [0; 10]).unwrap();
 
         /*
          * Sensor button
@@ -482,8 +499,11 @@ const APP: () = {
         xfr = None;
         dma = Some(adc_dma);
         buf = Some(buffer);
+        front_buf = front_buffer;
         front_leds = front_leds;
+        bottom_buf = bottom_buffer;
         bottom_leds = bottom_leds;
+        cycle = AdcDmaCycle::LedsOff;
         drive = m;
         screen = scr;
         accel = acc;
@@ -584,7 +604,7 @@ const APP: () = {
      *   - DMA_CHANNEL1 interrupt reads results
      *
      */
-    #[interrupt(schedule = [start_adc_dma_task], resources = [itm, xfr, dma, buf, front_leds, queue])]
+    #[interrupt(schedule = [start_adc_dma_task], resources = [itm, xfr, dma, buf, cycle, front_leds, bottom_leds, front_buf, bottom_buf, queue])]
     fn DMA1_CHANNEL1() {
         let dbg = &mut resources.itm.stim[0];
         let eq = &mut resources.queue;
@@ -592,39 +612,65 @@ const APP: () = {
         if let Some(xfr) = resources.xfr.take() {
             let (buf, dma) = xfr.wait();
 
-            // turn off front sensors IR LEDs
+            /* turn off sensor IR LEDs */
+
             resources.front_leds.set_low().unwrap();
+            resources.bottom_leds.set_low().unwrap();
 
-            iprintln!(dbg, "DMA1_CH1 IRQ: {:?}", buf);
+            /* check front sensor */
 
-            // front sensor processing
+            let fll = is_front_obstacle(buf[7], resources.front_buf[0]);
+            let flc = is_front_obstacle(buf[2], resources.front_buf[1]);
+            let fcc = is_front_obstacle(buf[3], resources.front_buf[2]);
+            let frc = is_front_obstacle(buf[9], resources.front_buf[3]);
+            let frr = is_front_obstacle(buf[5], resources.front_buf[4]);
 
-            // FIXME: how to switch to v2 ?
-            // FIXME: move calculation logic into brain ?
-            // FIXME: maybe schedule different scans from start_dma_task ?
-            let fll = is_obstacle_v1(buf[7], 4095 /* FIXME */);
-            let flc = is_obstacle_v1(buf[2], 4095 /* FIXME */);
-            let fcc = is_obstacle_v1(buf[3], 4095 /* FIXME */);
-            let frc = is_obstacle_v1(buf[9], 4095 /* FIXME */);
-            let frr = is_obstacle_v1(buf[5], 4095 /* FIXME */);
+            resources.front_buf[0] = buf[7];
+            resources.front_buf[1] = buf[2];
+            resources.front_buf[2] = buf[3];
+            resources.front_buf[3] = buf[9];
+            resources.front_buf[4] = buf[5];
 
             if fll || flc || fcc || frc || frr {
                 eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
             }
 
-            // FIXME: battery voltage/current processing
-            // FIXME: how to read VREF if ADC/DMA is enabled ? use adc_dma.split ?
-            //if let Ok(batt) = adc.get_battery() {
-            //    if is_battery_low(batt.voltage) {
-            //        eq.push(Events::BatteryLow).ok();
-            //    }
-            //}
+            /* check bottom sensor */
 
-            // TODO: bottom sensors processing
+            let bl = is_bottom_drop(buf[8], resources.bottom_buf[0]);
+            let bc = is_bottom_drop(buf[4], resources.bottom_buf[1]);
+            let br = is_bottom_drop(buf[6], resources.bottom_buf[2]);
 
-            // TODO: motor current alert processing
+            resources.bottom_buf[0] = buf[8];
+            resources.bottom_buf[1] = buf[4];
+            resources.bottom_buf[2] = buf[6];
 
-            *resources.dma = Some(dma);
+            if bl || bc || br {
+                eq.push(Events::BottomSensor(bl, bc, br)).ok();
+            }
+
+            /* check battery voltage */
+
+            let (mut adc, mut pins, chan) = dma.split();
+
+            let v_ref: u32 = adc.read_vref().into();
+            let v_ch1: u32 = adc.read(&mut pins.0).unwrap();
+            // As per PCB investigation, battery voltage divider:
+            // v_ch1 (mV) = v_bat * 20k / (200k + 20k) */
+            let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
+
+            if is_battery_low(v_bat) {
+                eq.push(Events::BatteryLow).ok();
+            }
+
+            let adc_dma = adc.with_scan_dma(pins, chan);
+
+            /* TODO: check battery charger current */
+            /* TODO: check motors current */
+
+            /* done with ADC checks */
+
+            *resources.dma = Some(adc_dma);
             *resources.buf = Some(buf);
 
             schedule
@@ -635,14 +681,23 @@ const APP: () = {
         }
     }
 
-    #[task(resources = [itm, xfr, dma, buf, front_leds])]
+    #[task(resources = [itm, xfr, dma, buf, front_leds, bottom_leds, cycle])]
     fn start_adc_dma_task() {
         let dbg = &mut resources.itm.stim[0];
 
         if let (Some(adc_dma), Some(buffer)) = (resources.dma.take(), resources.buf.take()) {
-            //iprintln!(dbg, "IDLE: start next xfer");
-            // turn on front sensors IR LEDs
-            resources.front_leds.set_high().unwrap();
+            *resources.cycle = match *resources.cycle {
+                AdcDmaCycle::LedsOn => {
+                    resources.front_leds.set_high().unwrap();
+                    resources.bottom_leds.set_high().unwrap();
+                    AdcDmaCycle::LedsOff
+                }
+                AdcDmaCycle::LedsOff => {
+                    resources.front_leds.set_low().unwrap();
+                    resources.bottom_leds.set_low().unwrap();
+                    AdcDmaCycle::LedsOn
+                }
+            };
 
             let transfer = adc_dma.read(buffer);
             *resources.xfr = Some(transfer);
@@ -745,12 +800,13 @@ const APP: () = {
 
 /* utils */
 
-fn is_obstacle_v1(val: u16, max: u16) -> bool {
-    val < max - 200
+fn is_front_obstacle(v1: u16, v2: u16) -> bool {
+    (v1 > v2 + 50) | (v2 > v1 + 50)
 }
 
-fn is_obstacle_v2(v1: u16, v2: u16) -> bool {
-    (v1 > v2 + 50) | (v2 > v1 + 50)
+fn is_bottom_drop(_v1: u16, _v2: u16) -> bool {
+    /* TODO */
+    false
 }
 
 fn is_battery_low(v: u32) -> bool {
