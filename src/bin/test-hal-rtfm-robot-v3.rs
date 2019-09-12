@@ -103,6 +103,7 @@ impl SetChannels<AdcPins> for adc::Adc<stm32::ADC1> {
         self.set_channel_sample_time(11, adc::SampleTime::T_28);
         self.set_channel_sample_time(15, adc::SampleTime::T_28);
     }
+
     fn set_sequence(&mut self) {
         self.set_regular_sequence(&[1, 2, 4, 6, 7, 8, 9, 10, 11, 15]);
     }
@@ -122,9 +123,11 @@ impl Pins<TIM3> for Brushes {
     type Channels = (Pwm<TIM3, C1>, Pwm<TIM3, C2>);
 }
 
-pub enum AdcDmaCycle {
-    LedsOn,
-    LedsOff,
+pub struct AdcDmaMode {
+    count: u8,
+    obstacle: bool,
+    drop: bool,
+    leds: bool,
 }
 
 /* */
@@ -151,10 +154,10 @@ const APP: () = {
     static mut battery: BatteryGpioType = ();
 
     // analog readings using DMA
-    static mut xfr: Option<Transfer<W, DmaBufType, AdcDmaType>> = ();
-    static mut dma: Option<AdcDmaType> = ();
-    static mut buf: Option<DmaBufType> = ();
-    static mut cycle: AdcDmaCycle = ();
+    static mut transfer: Option<Transfer<W, DmaBufType, AdcDmaType>> = ();
+    static mut adc_dma: Option<AdcDmaType> = ();
+    static mut buffer: Option<DmaBufType> = ();
+    static mut mode: AdcDmaMode = ();
 
     static mut front_leds: FrontSensorLedType = ();
     static mut front_buf: FrontSensorsBufType = ();
@@ -306,8 +309,11 @@ const APP: () = {
          */
 
         // PD13: GPIO open-drain output: IR LEDs for both main motors encoders, active low
+        /* TODO:
+         *  - Encoders IR LEDs are active low
+         *  - disable since no usage for that data so far
+         */
         let mut pd13 = gpiod.pd13.into_open_drain_output(&mut gpiod.crh);
-        // FIXME: disable for now (active low), need to enable only for measurements ???
         pd13.set_high().unwrap();
 
         // PC12, PE8: IR diodes for both main motors encoders
@@ -496,14 +502,19 @@ const APP: () = {
         queue = queue;
         itm = core.ITM;
         exti = device.EXTI;
-        xfr = None;
-        dma = Some(adc_dma);
-        buf = Some(buffer);
+        transfer = None;
+        adc_dma = Some(adc_dma);
+        buffer = Some(buffer);
         front_buf = front_buffer;
         front_leds = front_leds;
         bottom_buf = bottom_buffer;
         bottom_leds = bottom_leds;
-        cycle = AdcDmaCycle::LedsOff;
+        mode = AdcDmaMode {
+            count: 0,
+            obstacle: false,
+            drop: false,
+            leds: false,
+        };
         drive = m;
         screen = scr;
         accel = acc;
@@ -600,17 +611,21 @@ const APP: () = {
 
     /*
      * Sense: analog readings using DMA
-     *   - sensor processing task starts ADC/DMA scan
+     *   - start_adc_dma_task starts ADC/DMA scan
      *   - DMA_CHANNEL1 interrupt reads results
-     *
+     *   - DMA_CHANNEL1 interrupt schedules start_adc_dma_task
      */
-    #[interrupt(schedule = [start_adc_dma_task], resources = [itm, xfr, dma, buf, cycle, front_leds, bottom_leds, front_buf, bottom_buf, queue])]
+    #[interrupt(schedule = [start_adc_dma_task], resources = [itm, transfer, adc_dma, buffer, mode, front_leds, bottom_leds, front_buf, bottom_buf, queue])]
     fn DMA1_CHANNEL1() {
         let dbg = &mut resources.itm.stim[0];
         let eq = &mut resources.queue;
 
-        if let Some(xfr) = resources.xfr.take() {
-            let (buf, dma) = xfr.wait();
+        if let Some(xfer) = resources.transfer.take() {
+            let (buf, mut scan) = xfer.wait();
+
+            /* increment adc dma counter */
+
+            resources.mode.count = resources.mode.count.wrapping_add(1);
 
             /* turn off sensor IR LEDs */
 
@@ -633,6 +648,12 @@ const APP: () = {
 
             if fll || flc || fcc || frc || frr {
                 eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
+                resources.mode.obstacle = true;
+            } else {
+                if resources.mode.obstacle {
+                    eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
+                    resources.mode.obstacle = false;
+                }
             }
 
             /* check bottom sensor */
@@ -647,31 +668,39 @@ const APP: () = {
 
             if bl || bc || br {
                 eq.push(Events::BottomSensor(bl, bc, br)).ok();
+                resources.mode.drop = true;
+            } else {
+                if resources.mode.drop {
+                    eq.push(Events::BottomSensor(bl, bc, br)).ok();
+                    resources.mode.drop = false;
+                }
             }
 
-            /* check battery voltage */
+            /* check battery voltage once per 255 cycles: one-shot adc read is needed for vref */
 
-            let (mut adc, mut pins, chan) = dma.split();
+            if resources.mode.count == 0 {
+                let (mut adc, mut pins, chan) = scan.split();
 
-            let v_ref: u32 = adc.read_vref().into();
-            let v_ch1: u32 = adc.read(&mut pins.0).unwrap();
-            // As per PCB investigation, battery voltage divider:
-            // v_ch1 (mV) = v_bat * 20k / (200k + 20k) */
-            let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
+                let v_ref: u32 = adc.read_vref().into();
+                let v_ch1: u32 = adc.read(&mut pins.0).unwrap();
+                // As per PCB investigation, battery voltage divider:
+                // v_ch1 (mV) = v_bat * 20k / (200k + 20k) */
+                let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
 
-            if is_battery_low(v_bat) {
-                eq.push(Events::BatteryLow).ok();
+                if is_battery_low(v_bat) {
+                    eq.push(Events::BatteryLow).ok();
+                }
+
+                scan = adc.with_scan_dma(pins, chan);
             }
-
-            let adc_dma = adc.with_scan_dma(pins, chan);
 
             /* TODO: check battery charger current */
             /* TODO: check motors current */
 
             /* done with ADC checks */
 
-            *resources.dma = Some(adc_dma);
-            *resources.buf = Some(buf);
+            *resources.adc_dma = Some(scan);
+            *resources.buffer = Some(buf);
 
             schedule
                 .start_adc_dma_task(Instant::now() + SENSE_PERIOD.cycles())
@@ -681,26 +710,27 @@ const APP: () = {
         }
     }
 
-    #[task(resources = [itm, xfr, dma, buf, front_leds, bottom_leds, cycle])]
+    #[task(resources = [itm, transfer, adc_dma, buffer, front_leds, bottom_leds, mode])]
     fn start_adc_dma_task() {
         let dbg = &mut resources.itm.stim[0];
 
-        if let (Some(adc_dma), Some(buffer)) = (resources.dma.take(), resources.buf.take()) {
-            *resources.cycle = match *resources.cycle {
-                AdcDmaCycle::LedsOn => {
+        if let (Some(scan), Some(buf)) = (resources.adc_dma.take(), resources.buffer.take()) {
+            resources.mode.leds = match resources.mode.leds {
+                true => {
                     resources.front_leds.set_high().unwrap();
                     resources.bottom_leds.set_high().unwrap();
-                    AdcDmaCycle::LedsOff
+                    false
                 }
-                AdcDmaCycle::LedsOff => {
+                false => {
                     resources.front_leds.set_low().unwrap();
                     resources.bottom_leds.set_low().unwrap();
-                    AdcDmaCycle::LedsOn
+                    true
                 }
             };
 
-            let transfer = adc_dma.read(buffer);
-            *resources.xfr = Some(transfer);
+            /* start next adc dma transfer */
+            let xfer = scan.read(buf);
+            *resources.transfer = Some(xfer);
         } else {
             iprintln!(dbg, "IDLE: ERR: no rdma");
         }
@@ -770,7 +800,7 @@ const APP: () = {
 
         if r.pr8().bit_is_set() {
             resources.exti.pr.modify(|_, w| w.pr8().set_bit());
-            // TODO: collect stats to get rotation speed
+            // TODO: collect right wheel encoder data
         }
 
         if r.pr9().bit_is_set() {
@@ -793,7 +823,7 @@ const APP: () = {
 
         if r.pr12().bit_is_set() {
             resources.exti.pr.modify(|_, w| w.pr12().set_bit());
-            // TODO: collect stats to get rotation speed
+            // TODO: collect left wheel encoder data
         }
     }
 };
