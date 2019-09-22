@@ -33,6 +33,7 @@ use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::Motion;
 use eziclean::poll_timer::PollTimer;
+use eziclean::utils::*;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
@@ -182,7 +183,7 @@ const APP: () = {
          */
 
         let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
-        let mut a = Analog::init(adc, adc::AdcSampleTime::T_28);
+        let mut a = Analog::init(adc, adc::SampleTime::T_28);
 
         // front sensors LEDs
         let mut front_leds = gpioc.pc7.into_push_pull_output(&mut gpioc.crl);
@@ -525,7 +526,6 @@ const APP: () = {
 
     /*
      * Sense: sensor processing task to watch for obstacles using IR obstacle sensors
-     * TODO: setup ADC+DMA and convert this task into ADC DMA interrupt handler
      *
      */
     #[task(schedule = [sense_task], resources = [itm, analog, queue])]
@@ -535,11 +535,11 @@ const APP: () = {
         let eq = &mut resources.queue;
 
         if let (Ok(fs1), Ok(fs2)) = (adc.get_front_sensors(false), adc.get_front_sensors(true)) {
-            let fll = is_obstacle(fs1.fll, fs2.fll);
-            let flc = is_obstacle(fs1.flc, fs2.flc);
-            let fcc = is_obstacle(fs1.fcc, fs2.fcc);
-            let frc = is_obstacle(fs1.frc, fs2.frc);
-            let frr = is_obstacle(fs1.frr, fs2.frr);
+            let fll = is_front_obstacle(fs1.fll, fs2.fll);
+            let flc = is_front_obstacle(fs1.flc, fs2.flc);
+            let fcc = is_front_obstacle(fs1.fcc, fs2.fcc);
+            let frc = is_front_obstacle(fs1.frc, fs2.frc);
+            let frr = is_front_obstacle(fs1.frr, fs2.frr);
 
             if fll || flc || fcc || frc || frr {
                 eq.push(Events::FrontSensor(fll, flc, fcc, frc, frr)).ok();
@@ -651,13 +651,3 @@ const APP: () = {
         }
     }
 };
-
-/* utils */
-
-fn is_obstacle(v1: u16, v2: u16) -> bool {
-    (v1 > v2 + 50) | (v2 > v1 + 50)
-}
-
-fn is_battery_low(v: u32) -> bool {
-    v < 15000
-}

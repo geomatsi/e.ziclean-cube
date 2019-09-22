@@ -24,13 +24,14 @@ use stm32f1xx_hal as hal;
 
 use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
 use eziclean::motion::{Direction, Error, Gear, Motion, Rotation};
+use eziclean::utils::*;
 
 /* */
 
 #[app(device = stm32f1xx_hal::stm32)]
 const APP: () = {
     // basic hardware resources
-    static mut tmr2: timer::Timer<stm32::TIM2> = ();
+    static mut tmr2: timer::CountDownTimer<stm32::TIM2> = ();
     static mut itm: hal::stm32::ITM = ();
     // analog readings
     static mut analog: Analog = ();
@@ -74,12 +75,10 @@ const APP: () = {
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
         let mut afio = device.AFIO.constrain(&mut rcc.apb2);
-        let pwm = device.TIM4.pwm(
+        let pwm = timer::Timer::tim4(device.TIM4, &clocks, &mut rcc.apb1).pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
             500.hz(),
-            clocks,
-            &mut rcc.apb1,
         );
 
         let mut m = Motion::init(
@@ -104,7 +103,7 @@ const APP: () = {
 
         // ADC setup
         let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
-        let mut a = Analog::init(adc, adc::AdcSampleTime::T_13);
+        let mut a = Analog::init(adc, adc::SampleTime::T_13);
 
         // front sensor channels
         let ch4 = gpioa.pa4.into_analog(&mut gpioa.crl);
@@ -124,7 +123,8 @@ const APP: () = {
 
         /* configure and start TIM2 periodic timer */
 
-        let mut t2 = timer::Timer::tim2(device.TIM2, 50.hz(), clocks, &mut rcc.apb1);
+        let mut t2 =
+            timer::Timer::tim2(device.TIM2, &clocks, &mut rcc.apb1).start_count_down(50.hz());
         t2.listen(timer::Event::Update);
 
         /* init late resources */
@@ -206,8 +206,4 @@ fn make_decision(
     }
 
     Ok((left_obstacle, center_obstacle, right_obstacle))
-}
-
-fn is_obstacle(val: u16, max: u16) -> bool {
-    val < max - 200
 }

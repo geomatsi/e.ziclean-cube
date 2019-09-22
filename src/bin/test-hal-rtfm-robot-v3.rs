@@ -37,6 +37,7 @@ use eziclean::display::Display;
 use eziclean::events::Events;
 use eziclean::motion::Motion;
 use eziclean::poll_timer::PollTimer;
+use eziclean::utils::*;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
@@ -827,18 +828,3 @@ const APP: () = {
         }
     }
 };
-
-/* utils */
-
-fn is_front_obstacle(v1: u16, v2: u16) -> bool {
-    (v1 > v2 + 50) | (v2 > v1 + 50)
-}
-
-fn is_bottom_drop(_v1: u16, _v2: u16) -> bool {
-    /* TODO */
-    false
-}
-
-fn is_battery_low(v: u32) -> bool {
-    v < 15000
-}
