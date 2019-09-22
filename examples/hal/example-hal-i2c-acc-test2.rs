@@ -16,6 +16,7 @@ use hal::gpio::{OpenDrain, Output};
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use hal::timer::CountDownTimer;
 use hal::timer::Timer;
 use stm32f1xx_hal as hal;
 
@@ -35,11 +36,11 @@ use core::ops::DerefMut;
 
 /* */
 
-type GAccType = Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, Timer<TIM2>>, G8Device>;
+type GAccType = Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, CountDownTimer<TIM2>>, G8Device>;
 
 static G_EXTI: Mutex<RefCell<Option<stm32::EXTI>>> = Mutex::new(RefCell::new(None));
 static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
-static G_TMR: Mutex<RefCell<Option<Timer<TIM3>>>> = Mutex::new(RefCell::new(None));
+static G_TMR: Mutex<RefCell<Option<CountDownTimer<TIM3>>>> = Mutex::new(RefCell::new(None));
 static G_ACC: Mutex<RefCell<Option<GAccType>>> = Mutex::new(RefCell::new(None));
 
 /* */
@@ -62,10 +63,9 @@ fn main() -> ! {
             let mut gpiob = dp.GPIOB.split(&mut rcc.apb2);
             let mut gpioe = dp.GPIOE.split(&mut rcc.apb2);
 
-            // FIXME: TIM2 is used for charging, TIM3 is used for brushes
-            // FIXME: need more timers in stm32f1xx_hal
-            let tmr = Timer::tim2(dp.TIM2, 100.khz(), clocks, &mut rcc.apb1);
-            let delay = Timer::tim3(dp.TIM3, 1.hz(), clocks, &mut rcc.apb1);
+            // NOTE: in real firmware TIM2 is used for charging, TIM3 is used for brushes
+            let tmr = Timer::tim2(dp.TIM2, &clocks, &mut rcc.apb1).start_count_down(100.khz());
+            let delay = Timer::tim3(dp.TIM3, &clocks, &mut rcc.apb1).start_count_down(1.hz());
 
             let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
             let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);

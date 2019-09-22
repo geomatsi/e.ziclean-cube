@@ -39,8 +39,7 @@ fn main() -> ! {
     gpioe.pe9.into_floating_input(&mut gpioe.crh);
 
     // TIM2 is used for charging, TIM3 for brushes, TIM4 for wheels
-    // FIXME: need more timers in stm32f1xx_hal
-    let tmr = Timer::tim2(p.TIM2, 100.khz(), clocks, &mut rcc.apb1);
+    let tmr = Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).start_count_down(100.hz());
 
     let i2c = bitbang_hal::i2c::I2cBB::new(scl, sda, tmr);
 

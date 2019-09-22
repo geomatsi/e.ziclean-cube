@@ -15,6 +15,7 @@ use stm32f1xx_hal::gpio::gpiob::{PB4, PB5};
 use stm32f1xx_hal::gpio::{Alternate, PushPull};
 use stm32f1xx_hal::pwm::{Pins, Pwm, C1, C2};
 use stm32f1xx_hal::stm32::TIM3;
+use stm32f1xx_hal::timer::Timer;
 
 struct Brushes(PB4<Alternate<PushPull>>, PB5<Alternate<PushPull>>);
 
@@ -50,12 +51,10 @@ fn main() -> ! {
     let p1 = pb4.into_alternate_push_pull(&mut gpiob.crl);
     let p2 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
-    let (mut pump, mut brushes) = p.TIM3.pwm(
+    let (mut pump, mut brushes) = Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).pwm(
         Brushes(p1, p2),
         &mut afio.mapr,
         10.khz(),
-        clocks,
-        &mut rcc.apb1,
     );
 
     let max = pump.get_max_duty();

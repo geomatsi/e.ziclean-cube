@@ -18,12 +18,13 @@ use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::Event;
 use hal::timer::Timer;
+use hal::timer::CountDownTimer;
 use stm32f1xx_hal as hal;
 
 static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
-static G_TIM2: Mutex<RefCell<Option<Timer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
-static G_TIM3: Mutex<RefCell<Option<Timer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
-static G_TIM4: Mutex<RefCell<Option<Timer<stm32::TIM4>>>> = Mutex::new(RefCell::new(None));
+static G_TIM2: Mutex<RefCell<Option<CountDownTimer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
+static G_TIM3: Mutex<RefCell<Option<CountDownTimer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
+static G_TIM4: Mutex<RefCell<Option<CountDownTimer<stm32::TIM4>>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
@@ -49,9 +50,9 @@ fn main() -> ! {
             syst.enable_interrupt();
 
             // configure and start periodic GP timers
-            let mut tim2 = Timer::tim2(dp.TIM2, 1.hz(), clocks, &mut rcc.apb1);
-            let mut tim3 = Timer::tim3(dp.TIM3, 1.hz(), clocks, &mut rcc.apb1);
-            let mut tim4 = Timer::tim4(dp.TIM4, 1.hz(), clocks, &mut rcc.apb1);
+            let mut tim2 = Timer::tim2(dp.TIM2, &clocks, &mut rcc.apb1).start_count_down(1.hz());
+            let mut tim3 = Timer::tim3(dp.TIM3, &clocks, &mut rcc.apb1).start_count_down(1.hz());
+            let mut tim4 = Timer::tim4(dp.TIM4, &clocks, &mut rcc.apb1).start_count_down(1.hz());
 
             tim2.listen(Event::Update);
             tim3.listen(Event::Update);

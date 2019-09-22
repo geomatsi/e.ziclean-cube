@@ -41,13 +41,14 @@ fn main() -> ! {
     let dio = gpiod.pd14.into_push_pull_output(&mut gpiod.crh);
     let stb = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
-    let timer = Timer::tim2(p.TIM2, 200.khz(), clocks, &mut rcc.apb1);
-    let mut delay = Timer::tim3(p.TIM3, 2.hz(), clocks, &mut rcc.apb1);
+    let timer = Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).start_count_down(200.khz());
+    let mut delay = Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).start_count_down(2.hz());
 
     let mut spi = bb::spi::SPI::new(bb::spi::MODE_3, tmp, dio, clk, timer);
     spi.set_bit_order(bb::spi::BitOrder::LSBFirst);
 
-    let mut screen = display::Display::init(spi, stb);
+    let mut screen = display::Display::new(spi, stb);
+    screen.enable().unwrap();
 
     loop {
         iprintln!(dbg, "clean");

@@ -14,6 +14,7 @@ use stm32f1xx_hal::gpio::gpiob::PB10;
 use stm32f1xx_hal::gpio::{Alternate, PushPull};
 use stm32f1xx_hal::pwm::{Pins, Pwm, C3};
 use stm32f1xx_hal::stm32::TIM2;
+use stm32f1xx_hal::timer;
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
 struct Charger(PB10<Alternate<PushPull>>);
@@ -61,12 +62,10 @@ fn main() -> ! {
     let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
 
     // TIM2 PWM setup
-    let mut charger = p.TIM2.pwm(
+    let mut charger = timer::Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).pwm(
         Charger(pin),
         &mut afio.mapr,
         10.khz(),
-        clocks,
-        &mut rcc.apb1,
     );
 
     let pwm_max_duty = charger.get_max_duty();

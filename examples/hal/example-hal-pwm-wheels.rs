@@ -11,7 +11,7 @@ use panic_semihosting as _;
 
 use cortex_m_semihosting::hprintln;
 
-use stm32f1xx_hal::{prelude::*, stm32};
+use stm32f1xx_hal::{prelude::*, stm32, timer};
 
 #[entry]
 fn main() -> ! {
@@ -77,12 +77,10 @@ fn main() -> ! {
     let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
     let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-    let mut pwm = p.TIM4.pwm(
+    let mut pwm = timer::Timer::tim4(p.TIM4, &clocks, &mut rcc.apb1).pwm(
         (c1, c2, c3, c4),
         &mut afio.mapr,
         500.hz(),
-        clocks,
-        &mut rcc.apb1,
     );
 
     let max = pwm.0.get_max_duty();
