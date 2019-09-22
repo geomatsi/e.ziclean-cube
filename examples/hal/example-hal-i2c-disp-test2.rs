@@ -9,7 +9,7 @@ use cortex_m as cm;
 
 use bitbang_hal as bb;
 
-use eziclean::display;
+use eziclean::hw::display;
 use nb::block;
 use panic_itm as _;
 

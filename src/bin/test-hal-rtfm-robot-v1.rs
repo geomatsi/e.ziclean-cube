@@ -22,9 +22,9 @@ use hal::stm32;
 use hal::timer;
 use stm32f1xx_hal as hal;
 
-use eziclean::adc::{Analog, BottomSensorsData, FrontSensorsData};
-use eziclean::motion::{Direction, Error, Gear, Motion, Rotation};
-use eziclean::utils::*;
+use eziclean::hw::adc::{Analog, BottomSensorsData, FrontSensorsData};
+use eziclean::hw::motion::{Direction, Error, Gear, Motion, Rotation};
+use eziclean::hw::utils::*;
 
 /* */
 

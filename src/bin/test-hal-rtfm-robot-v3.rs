@@ -31,13 +31,13 @@ use stm32f1xx_hal as hal;
 
 use bitbang_hal as bb;
 
-use eziclean::beep::Beeper;
-use eziclean::clean::Cleaner;
-use eziclean::display::Display;
-use eziclean::events::Events;
-use eziclean::motion::Motion;
-use eziclean::poll_timer::PollTimer;
-use eziclean::utils::*;
+use eziclean::hw::beep::Beeper;
+use eziclean::hw::clean::Cleaner;
+use eziclean::hw::display::Display;
+use eziclean::hw::events::Events;
+use eziclean::hw::motion::Motion;
+use eziclean::hw::poll_timer::PollTimer;
+use eziclean::hw::utils::*;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
