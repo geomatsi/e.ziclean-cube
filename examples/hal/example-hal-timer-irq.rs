@@ -16,9 +16,9 @@ use core::ops::DerefMut;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use hal::timer::CountDownTimer;
 use hal::timer::Event;
 use hal::timer::Timer;
-use hal::timer::CountDownTimer;
 use stm32f1xx_hal as hal;
 
 static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));

@@ -51,11 +51,8 @@ fn main() -> ! {
     let p1 = pb4.into_alternate_push_pull(&mut gpiob.crl);
     let p2 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
-    let (mut pump, mut brushes) = Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).pwm(
-        Brushes(p1, p2),
-        &mut afio.mapr,
-        10.khz(),
-    );
+    let (mut pump, mut brushes) =
+        Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).pwm(Brushes(p1, p2), &mut afio.mapr, 10.khz());
 
     let max = pump.get_max_duty();
 

@@ -36,7 +36,8 @@ use core::ops::DerefMut;
 
 /* */
 
-type GAccType = Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, CountDownTimer<TIM2>>, G8Device>;
+type GAccType =
+    Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, CountDownTimer<TIM2>>, G8Device>;
 
 static G_EXTI: Mutex<RefCell<Option<stm32::EXTI>>> = Mutex::new(RefCell::new(None));
 static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
