@@ -49,6 +49,9 @@ version = "0.2.0"
 [dependencies.bitbang-hal]
 git = "https://github.com/sajattack/bitbang-hal"
 
+[dependencies.infrared]
+git = "https://github.com/jkristell/infrared.git"
+
 [dependencies.stm32f1xx-hal]
 optional = true
 git = "https://github.com/stm32-rs/stm32f1xx-hal.git"
@@ -136,6 +139,11 @@ required-features = [ "hal" ]
 [[example]]
 name = "example-hal-ir-rc-test1"
 path = "examples/hal/example-hal-ir-rc-test1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-ir-rc-test2"
+path = "examples/hal/example-hal-ir-rc-test2.rs"
 required-features = [ "hal" ]
 
 [[example]]
