@@ -129,14 +129,12 @@ fn main() -> ! {
 fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     let nvic = &mut cp.NVIC;
 
-    // Enable TIM2 IRQ, set prio 1 and clear any pending IRQs
-    nvic.enable(stm32::Interrupt::TIM2);
-
-    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM2);
-
     unsafe {
         nvic.set_priority(stm32::Interrupt::TIM2, 1);
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::TIM2);
     }
+
+    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM2);
 }
 
 #[interrupt]
@@ -202,7 +200,7 @@ fn sample_on_edge<CMD, ERR>(
     recv: &mut dyn Receiver<Cmd = CMD, Err = ERR>,
     edge: bool,
     t: u32,
-    d: &mut Stim,
+    _d: &mut Stim,
 ) -> Option<CMD> {
     match recv.sample_edge(edge, t) {
         ReceiverState::Idle => {
