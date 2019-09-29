@@ -147,8 +147,18 @@ path = "examples/hal/example-hal-ir-rc-test2.rs"
 required-features = [ "hal" ]
 
 [[example]]
-name = "example-hal-timer-irq"
-path = "examples/hal/example-hal-timer-irq.rs"
+name = "example-hal-ir-rc-test3"
+path = "examples/hal/example-hal-ir-rc-test3.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-timer-irq-test1"
+path = "examples/hal/example-hal-timer-irq-test1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-timer-irq-test2"
+path = "examples/hal/example-hal-timer-irq-test2.rs"
 required-features = [ "hal" ]
 
 # ral examples
