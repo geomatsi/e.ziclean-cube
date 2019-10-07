@@ -187,6 +187,27 @@ Schematics: TODO
 
 Note that left and front IR remote control diodes are connected to PC11 and PD11 respectively. As a result, both these GPIO lines are attached to the same EXTI11 line and only one of them can be selected as EXTI source.
 
+### IR controls: Dock beacons and Remote Control commands
+Logic analyzer capture of IR RC _Edge_ button demodulated signal looks as follows:
+![alt text](pics/ir-rc-capture.jpg)
+
+Capture in csv format is [attached](dumps/ir-rc-capture.csv). This capture does not look like any of the common IR RC protocols, e.g. NEC, RC5, RC6. In fact, it looks like 1-wire protocol w/o initial reset/response phase. Following 1-wire conventions, consider short low level pulse as '1' and long low level pulse as '0'. As a result, the following table of key codes is obtained:
+
+| Function | Name | Code | Comments |
+|-|-|-|-|
+| Dock | Beacon code | 0x10 | |
+| Button | _ON/OFF_ | 0x1d | |
+| Button | _SCHED_ | 0x4d | |
+| Button | _TIME_ | 0x2d | |
+| Button | _UP_  | 0x3d | |
+| Button | _DOWN_ | 0x6d | |
+| Button | _LEFT_ | 0x5d | |
+| Button | _RIGHT_ | 0x7d | |
+| Button | _EDGE_ | 0x5d | same as _LEFT_ |
+| Button | _DOCK_ | 0x1d | same as _ON/OFF_ |
+| Button | _SPOT_ | 0x6d | same as _DOWN_ |
+| Button | _CLEAN_ | 0x3d | same as _UP_ |
+
 ## Firmware notes
 TODO
 
