@@ -35,6 +35,8 @@ use eziclean::hw::beep::Beeper;
 use eziclean::hw::clean::Cleaner;
 use eziclean::hw::display::Display;
 use eziclean::hw::events::Events;
+use eziclean::hw::ir_rc::IRReceiver;
+use eziclean::hw::ir_rc::ReceiverResult;
 use eziclean::hw::motion::Motion;
 use eziclean::hw::poll_timer::PollTimer;
 use eziclean::hw::utils::*;
@@ -55,6 +57,7 @@ type ButtonGpioType = gpio::gpiod::PD1<Input<Floating>>;
 type ChargerGpioType = gpio::gpioe::PE4<Input<Floating>>;
 type DockGpioType = gpio::gpioe::PE5<Input<Floating>>;
 type BatteryGpioType = gpio::gpioe::PE6<Input<Floating>>;
+type InfraredTopGpioType = gpio::gpiod::PD15<Input<Floating>>;
 
 type FrontSensorLedType = gpio::gpioc::PC7<Output<PushPull>>;
 type BottomSensorLedType = gpio::gpiod::PD9<Output<PushPull>>;
@@ -137,6 +140,10 @@ const PROC_PERIOD: u32 = 400_000; /* 1/20 sec */
 const SENSE_PERIOD: u32 = 800_000; /* 1/10 sec */
 const POWER_PERIOD: u32 = 80_000_000; /* 10 sec */
 
+const IR_FREQ: u32 = 5000;
+const IR_PERIOD: u32 = 8_000_000 / IR_FREQ;
+const IR_WAIT_PERIOD: u32 = 8_000_000; /* 1 sec */
+
 /* */
 
 #[app(device = stm32f1xx_hal::stm32)]
@@ -181,7 +188,12 @@ const APP: () = {
     // Beeper
     static mut beeper: Beeper<PollTimer, BeepGpioType> = ();
 
-    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task])]
+    // IR RC
+    static mut ir_pin: InfraredTopGpioType = ();
+    static mut ir_decoder: IRReceiver = ();
+    static mut ir_count: u32 = ();
+
+    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_rc_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -480,6 +492,12 @@ const APP: () = {
         let address = SlaveAddr::Alternative(true);
         let acc = Kxcj9::new_kxcj9_1008(i2c, address);
 
+        // Infrared Remote Control
+
+        // top IR diode: signal connected to PD15
+        let irr = gpiod.pd15.into_floating_input(&mut gpiod.crh);
+        let ird = IRReceiver::new(IR_FREQ);
+
         /*
          * schedule tasks
          *
@@ -493,6 +511,9 @@ const APP: () = {
             .unwrap();
         schedule
             .power_task(Instant::now() + POWER_PERIOD.cycles())
+            .unwrap();
+        schedule
+            .ir_rc_task(Instant::now() + IR_PERIOD.cycles())
             .unwrap();
 
         /*
@@ -525,6 +546,9 @@ const APP: () = {
         battery = battery;
         beeper = beeper;
         cleaner = cleaner;
+        ir_decoder = ird;
+        ir_count = 0;
+        ir_pin = irr;
     }
 
     /*
@@ -608,6 +632,39 @@ const APP: () = {
         };
 
         acc.enable_wake_up_interrupt(config).unwrap();
+    }
+
+    /*
+     * Decoding Infrared Remote Control messages
+     *
+     */
+    #[task(schedule = [ir_rc_task], resources = [itm, ir_pin, ir_count, ir_decoder])]
+    fn ir_rc_task() {
+        let dbg = &mut resources.itm.stim[0];
+        let val = resources.ir_pin.is_high().unwrap();
+
+        match resources.ir_decoder.sample(val, *resources.ir_count) {
+            ReceiverResult::Done(v) => {
+                iprintln!(dbg, "result 0x{:x}", v);
+                resources.ir_decoder.reset();
+                *resources.ir_count = 0;
+                schedule
+                    .ir_rc_task(scheduled + IR_WAIT_PERIOD.cycles())
+                    .unwrap();
+            }
+            ReceiverResult::Fail(e) => {
+                iprintln!(dbg, "error {}", e);
+                resources.ir_decoder.reset();
+                *resources.ir_count = 0;
+                schedule
+                    .ir_rc_task(scheduled + IR_WAIT_PERIOD.cycles())
+                    .unwrap();
+            }
+            ReceiverResult::Proc => {
+                *resources.ir_count = resources.ir_count.wrapping_add(1);
+                schedule.ir_rc_task(scheduled + IR_PERIOD.cycles()).unwrap();
+            }
+        }
     }
 
     /*
