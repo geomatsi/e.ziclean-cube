@@ -187,7 +187,8 @@ Schematics: TODO
 
 Note that left and front IR remote control diodes are connected to PC11 and PD11 respectively. As a result, both these GPIO lines are attached to the same EXTI11 line and only one of them can be selected as EXTI source.
 
-### IR controls: Dock beacons and Remote Control commands
+### IR controls
+#### Remote Control commands
 Logic analyzer capture of IR RC _Edge_ button demodulated signal looks as follows:
 ![alt text](pics/ir-rc-capture.jpg)
 
@@ -195,7 +196,6 @@ Capture in csv format is [attached](dumps/ir-rc-capture.csv). This capture does 
 
 | Function | Name | Code | Comments |
 |-|-|-|-|
-| Dock | Beacon code | 0x10 | |
 | Button | _ON/OFF_ | 0x1d | |
 | Button | _SCHED_ | 0x4d | |
 | Button | _TIME_ | 0x2d | |
@@ -207,6 +207,17 @@ Capture in csv format is [attached](dumps/ir-rc-capture.csv). This capture does 
 | Button | _DOCK_ | 0x1d | same as _ON/OFF_ |
 | Button | _SPOT_ | 0x6d | same as _DOWN_ |
 | Button | _CLEAN_ | 0x3d | same as _UP_ |
+
+If button on IR RC device is pressed and not released, then IR RC command is sent continuously, approximately 10-12 msec between two consequent transmissions. Here is a capture of demodulated signal: 
+![alt_text](pics/ir-rc-continuous-command-capture.png)
+
+#### Dock station beacons
+Dock station sends beacons continuously, approximately ~32 msec between consequent beacons. Here is a capture of demodulated signal:
+![alt_text](pics/ir-rc-dock-beacons-capture.png)
+
+Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depends from viewing angle angle:
+![alt_text](pics/ir-rc-dock-codes.png)
+
 
 ## Firmware notes
 TODO
