@@ -30,10 +30,10 @@ use eziclean::hw::adc::Analog;
 use eziclean::hw::beep::Beeper;
 use eziclean::hw::clean::Cleaner;
 use eziclean::hw::display::Display;
-use eziclean::hw::events::Events;
 use eziclean::hw::motion::Motion;
 use eziclean::hw::poll_timer::PollTimer;
 use eziclean::hw::utils::*;
+use eziclean::sw::comm::Events;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;

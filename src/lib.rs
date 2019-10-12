@@ -2,3 +2,4 @@
 
 #[cfg(feature = "hal")]
 pub mod hw;
+pub mod sw;

@@ -34,12 +34,12 @@ use bitbang_hal as bb;
 use eziclean::hw::beep::Beeper;
 use eziclean::hw::clean::Cleaner;
 use eziclean::hw::display::Display;
-use eziclean::hw::events::Events;
 use eziclean::hw::ir_rc::IRReceiver;
 use eziclean::hw::ir_rc::ReceiverResult;
 use eziclean::hw::motion::Motion;
 use eziclean::hw::poll_timer::PollTimer;
 use eziclean::hw::utils::*;
+use eziclean::sw::comm::Events;
 
 use heapless::binary_heap::{BinaryHeap, Max};
 use heapless::consts::*;
