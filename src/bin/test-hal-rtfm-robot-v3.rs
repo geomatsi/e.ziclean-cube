@@ -648,14 +648,16 @@ const APP: () = {
      * Decoding Infrared Remote Control messages
      *
      */
-    #[task(schedule = [ir_decode_task, ir_enable_task], resources = [itm, ir_pin, ir_count, ir_decoder, exti])]
+    #[task(schedule = [ir_decode_task, ir_enable_task], resources = [itm, ir_pin, ir_count, ir_decoder, exti, queue])]
     fn ir_decode_task() {
         let dbg = &mut resources.itm.stim[0];
         let val = resources.ir_pin.is_high().unwrap();
+        let eq = &mut resources.queue;
 
         match resources.ir_decoder.sample(val, *resources.ir_count) {
             ReceiverResult::Done(v) => {
-                iprintln!(dbg, "result 0x{:x}", v);
+                let e = Events::InfraredCommand(v);
+                eq.push(e).ok();
                 resources.ir_decoder.reset();
                 *resources.ir_count = 0;
                 schedule
@@ -663,7 +665,7 @@ const APP: () = {
                     .unwrap();
             }
             ReceiverResult::Fail(e) => {
-                iprintln!(dbg, "error {}", e);
+                iprintln!(dbg, "ir: err: {}", e);
                 resources.ir_decoder.reset();
                 *resources.ir_count = 0;
                 schedule

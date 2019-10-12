@@ -20,6 +20,8 @@ pub enum Events {
     FrontSensor(bool, bool, bool, bool, bool),
     /// Bottom sensors event: (l, c, r)
     BottomSensor(bool, bool, bool),
+    /// IR RC command
+    InfraredCommand(u8),
 }
 
 impl Default for Events {
@@ -36,6 +38,7 @@ impl Events {
             Events::Charger(_) => 20u8,
             Events::Battery(_) => 25u8,
             Events::BatteryLow => 30u8,
+            Events::InfraredCommand(_) => 35u8,
             Events::Button(_) => 40u8,
             Events::Accel(_, _, _) => 80u8,
             Events::FrontSensor(_, _, _, _, _) => 90u8,
@@ -81,6 +84,10 @@ impl Ord for Events {
             },
             Events::BatteryLow => match other {
                 Events::BatteryLow => Ordering::Equal,
+                _ => self.prio().cmp(&other.prio()),
+            },
+            Events::InfraredCommand(_) => match other {
+                Events::InfraredCommand(_) => Ordering::Equal,
                 _ => self.prio().cmp(&other.prio()),
             },
             Events::Button(_) => match other {
