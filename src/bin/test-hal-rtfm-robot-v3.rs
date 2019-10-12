@@ -136,13 +136,14 @@ pub struct AdcDmaMode {
 
 /* */
 
-const PROC_PERIOD: u32 = 400_000; /* 1/20 sec */
-const SENSE_PERIOD: u32 = 800_000; /* 1/10 sec */
+const PROC_PERIOD: u32 = 400_000; /* 50 msec */
+const SENSE_PERIOD: u32 = 800_000; /* 100 msec */
 const POWER_PERIOD: u32 = 80_000_000; /* 10 sec */
 
 const IR_FREQ: u32 = 5000;
 const IR_PERIOD: u32 = 8_000_000 / IR_FREQ;
-const IR_WAIT_PERIOD: u32 = 8_000_000; /* 1 sec */
+const IR_WAIT_PERIOD: u32 = 4_000_000; /* 1/2 sec */
+const IR_ERR_PERIOD: u32 = 200_000; /* 25 msec */
 
 /* */
 
@@ -193,7 +194,7 @@ const APP: () = {
     static mut ir_decoder: IRReceiver = ();
     static mut ir_count: u32 = ();
 
-    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_rc_task])]
+    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_decode_task, ir_enable_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -498,6 +499,15 @@ const APP: () = {
         let irr = gpiod.pd15.into_floating_input(&mut gpiod.crh);
         let ird = IRReceiver::new(IR_FREQ);
 
+        // select PD15 as source input for line EXTI10_15
+        afio.exticr4
+            .exticr4()
+            .modify(|_, w| unsafe { w.exti15().bits(0b0011) });
+
+        // configure interrupt on falling edge
+        device.EXTI.ftsr.modify(|_, w| w.tr15().set_bit());
+        device.EXTI.rtsr.modify(|_, w| w.tr15().clear_bit());
+
         /*
          * schedule tasks
          *
@@ -513,7 +523,7 @@ const APP: () = {
             .power_task(Instant::now() + POWER_PERIOD.cycles())
             .unwrap();
         schedule
-            .ir_rc_task(Instant::now() + IR_PERIOD.cycles())
+            .ir_enable_task(Instant::now() + IR_WAIT_PERIOD.cycles())
             .unwrap();
 
         /*
@@ -638,8 +648,8 @@ const APP: () = {
      * Decoding Infrared Remote Control messages
      *
      */
-    #[task(schedule = [ir_rc_task], resources = [itm, ir_pin, ir_count, ir_decoder])]
-    fn ir_rc_task() {
+    #[task(schedule = [ir_decode_task, ir_enable_task], resources = [itm, ir_pin, ir_count, ir_decoder, exti])]
+    fn ir_decode_task() {
         let dbg = &mut resources.itm.stim[0];
         let val = resources.ir_pin.is_high().unwrap();
 
@@ -649,7 +659,7 @@ const APP: () = {
                 resources.ir_decoder.reset();
                 *resources.ir_count = 0;
                 schedule
-                    .ir_rc_task(scheduled + IR_WAIT_PERIOD.cycles())
+                    .ir_enable_task(Instant::now() + IR_WAIT_PERIOD.cycles())
                     .unwrap();
             }
             ReceiverResult::Fail(e) => {
@@ -657,14 +667,22 @@ const APP: () = {
                 resources.ir_decoder.reset();
                 *resources.ir_count = 0;
                 schedule
-                    .ir_rc_task(scheduled + IR_WAIT_PERIOD.cycles())
+                    .ir_enable_task(Instant::now() + IR_ERR_PERIOD.cycles())
                     .unwrap();
             }
             ReceiverResult::Proc => {
                 *resources.ir_count = resources.ir_count.wrapping_add(1);
-                schedule.ir_rc_task(scheduled + IR_PERIOD.cycles()).unwrap();
+                schedule
+                    .ir_decode_task(scheduled + IR_PERIOD.cycles())
+                    .unwrap();
             }
         }
+    }
+
+    #[task(resources = [exti])]
+    fn ir_enable_task() {
+        // enable IR RC interrupts
+        resources.exti.imr.modify(|_, w| w.mr15().set_bit());
     }
 
     /*
@@ -875,13 +893,22 @@ const APP: () = {
         }
     }
 
-    #[interrupt(resources = [exti])]
+    #[interrupt(schedule = [ir_decode_task], resources = [exti])]
     fn EXTI15_10() {
         let r = resources.exti.pr.read();
 
         if r.pr12().bit_is_set() {
             resources.exti.pr.modify(|_, w| w.pr12().set_bit());
             // TODO: collect left wheel encoder data
+        }
+
+        if r.pr15().bit_is_set() {
+            // acknowledge and disable IR pin interrupt
+            resources.exti.pr.modify(|_, w| w.pr15().set_bit());
+            resources.exti.imr.modify(|_, w| w.mr15().clear_bit());
+            schedule
+                .ir_decode_task(Instant::now() + IR_PERIOD.cycles())
+                .unwrap();
         }
     }
 };
