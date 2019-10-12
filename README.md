@@ -215,7 +215,7 @@ If button on IR RC device is pressed and not released, then IR RC command is sen
 Dock station sends beacons continuously, approximately ~32 msec between consequent beacons. Here is a capture of demodulated signal:
 ![alt_text](pics/ir-rc-dock-beacons-capture.png)
 
-Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depends from viewing angle angle:
+Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depends from viewing angle:
 ![alt_text](pics/ir-rc-dock-codes.png)
 
 
