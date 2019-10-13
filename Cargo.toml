@@ -79,6 +79,11 @@ name = "test-hal-rtfm-robot-v3"
 path = "src/bin/test-hal-rtfm-robot-v3.rs"
 required-features = [ "hal" ]
 
+[[bin]]
+name = "test-hal-rtfm-robot-v4"
+path = "src/bin/test-hal-rtfm-robot-v4.rs"
+required-features = [ "hal" ]
+
 # hal examples
 
 [[example]]

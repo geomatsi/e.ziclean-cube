@@ -109,3 +109,10 @@ impl Ord for Events {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum Actions {
+    None,
+    Beep(u32),
+    Debug(Events),
+}

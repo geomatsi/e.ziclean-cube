@@ -33,4 +33,11 @@ where
 
         self.pin.set_low().ok();
     }
+
+    pub fn beep_on(&mut self) {
+        self.pin.set_high().ok();
+    }
+    pub fn beep_off(&mut self) {
+        self.pin.set_low().ok();
+    }
 }
