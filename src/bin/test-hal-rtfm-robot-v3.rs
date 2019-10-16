@@ -1,5 +1,4 @@
-// TBD
-
+#![allow(clippy::many_single_char_names)]
 #![no_main]
 #![no_std]
 

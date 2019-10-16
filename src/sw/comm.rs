@@ -1,5 +1,10 @@
 use core::cmp::Ordering;
 
+/*
+ * Events: notifications from hardware to controller
+ *
+ */
+
 #[derive(Debug, Clone, Copy)]
 pub enum Events {
     /// Empty event
@@ -110,9 +115,58 @@ impl Ord for Events {
     }
 }
 
+/*
+ * Actions: directions from controller to hardware
+ *
+ */
+
+/// Wheel rotation direction
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum Direction {
+    Forward,
+    None,
+    Reverse,
+}
+
+/// Vehicle rotation direction
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum Rotation {
+    Left,
+    Right,
+}
+
+/// Gear
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum Gear {
+    Low,
+    Medium,
+    Top,
+}
+
+/// Cleaner gear: brushes and pump
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum Clean {
+    Slow,
+    Fast,
+}
+
+/// Display
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum Display {
+    Number(u16),
+    Time(u8, u8),
+    Digits([u8; 4]),
+    Clear,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Actions {
+    Debug(Events),
     None,
     Beep(u32),
-    Debug(Events),
+    Clean(Clean),
+    Motion(Direction, Gear),
+    Rotation(Rotation, Gear),
+    Wheels((Direction, Gear), (Direction, Gear)),
+    Display(Display),
 }

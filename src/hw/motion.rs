@@ -1,3 +1,4 @@
+use crate::sw::comm::{Direction, Gear, Rotation};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 use stm32f1xx_hal as hal;
@@ -66,29 +67,6 @@ type RightDir = (RightWheelFwdControl, RightWheelRevControl);
 pub enum Error {
     /// HardwareError
     HardwareError,
-}
-
-/// Wheel rotation direction
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Direction {
-    Forward,
-    None,
-    Reverse,
-}
-
-/// Vehicle rotation direction
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Rotation {
-    Left,
-    Right,
-}
-
-/// Gear
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Gear {
-    Low,
-    Medium,
-    Top,
 }
 
 impl Into<usize> for Gear {
