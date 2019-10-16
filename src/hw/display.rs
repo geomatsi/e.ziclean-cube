@@ -104,6 +104,9 @@ where
     }
 
     pub fn enable(&mut self) -> Result<(), Error> {
+        // consistent initiial state: STB should be high
+        self.stb.set_high().map_err(|_| Error::HardwareError)?;
+
         // display mode setting: 7 grids, 11 segments
         self.write(0b0000_0011)?;
         // data setting: normal mode, fixed addr, write data to display
