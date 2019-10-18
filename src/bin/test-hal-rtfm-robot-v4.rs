@@ -586,7 +586,7 @@ const APP: () = {
      * Brain: main processing task
      *
      */
-    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner])]
+    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner, drive])]
     fn proc_task() {
         let dbg = &mut resources.itm.stim[0];
 
@@ -606,6 +606,16 @@ const APP: () = {
                 }
                 Actions::Clean(c) => {
                     resources.cleaner.clean(c);
+                }
+                Actions::Motion(direction, gear) => {
+                    resources.drive.motion(direction, gear).unwrap();
+                }
+                Actions::Rotation(direction, gear) => {
+                    resources.drive.rotate(direction, gear).unwrap();
+                }
+                Actions::Wheels((ld, lg), (rd, rg)) => {
+                    resources.drive.set_left_wheel(ld, lg).unwrap();
+                    resources.drive.set_right_wheel(rd, rg).unwrap();
                 }
                 _ => {}
             }

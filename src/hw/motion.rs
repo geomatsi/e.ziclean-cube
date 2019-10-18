@@ -174,6 +174,22 @@ impl Motion {
         Ok(())
     }
 
+    pub fn motion(&mut self, dir: Direction, gear: Gear) -> Result<(), Error> {
+        match dir {
+            Direction::None => {
+                self.stop()?;
+            }
+            Direction::Reverse => {
+                self.backwards(gear)?;
+            }
+            Direction::Forward => {
+                self.forward(gear)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn rotate(&mut self, rot: Rotation, gear: Gear) -> Result<(), Error> {
         match rot {
             Rotation::Left => {
