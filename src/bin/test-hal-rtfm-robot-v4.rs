@@ -43,6 +43,7 @@ use eziclean::sw::brain::Brain;
 use eziclean::sw::brain::DebugBrain;
 use eziclean::sw::comm::Actions;
 use eziclean::sw::comm::Events;
+use eziclean::sw::comm::View;
 
 use kxcj9::ic::G8Device;
 use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
@@ -586,7 +587,7 @@ const APP: () = {
      * Brain: main processing task
      *
      */
-    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner, drive])]
+    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner, drive, screen])]
     fn proc_task() {
         let dbg = &mut resources.itm.stim[0];
 
@@ -617,7 +618,20 @@ const APP: () = {
                     resources.drive.set_left_wheel(ld, lg).unwrap();
                     resources.drive.set_right_wheel(rd, rg).unwrap();
                 }
-                _ => {}
+                Actions::Display(data) => match data {
+                    View::Number(num) => {
+                        resources.screen.print_num(num).unwrap();
+                    }
+                    View::Time(hh, mm, cn) => {
+                        resources.screen.print_time([hh, mm], cn).unwrap();
+                    }
+                    View::Digits(nums) => {
+                        resources.screen.print4(nums).unwrap();
+                    }
+                    View::Clear => {
+                        resources.screen.clear().unwrap();
+                    }
+                },
             }
         }
 

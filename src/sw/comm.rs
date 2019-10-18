@@ -153,9 +153,9 @@ pub enum Clean {
 
 /// Display
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Display {
+pub enum View {
     Number(u16),
-    Time(u8, u8),
+    Time(u8, u8, bool),
     Digits([u8; 4]),
     Clear,
 }
@@ -169,5 +169,5 @@ pub enum Actions {
     Motion(Direction, Gear),
     Rotation(Rotation, Gear),
     Wheels((Direction, Gear), (Direction, Gear)),
-    Display(Display),
+    Display(View),
 }
