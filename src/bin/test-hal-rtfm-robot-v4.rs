@@ -586,7 +586,7 @@ const APP: () = {
      * Brain: main processing task
      *
      */
-    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper])]
+    #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner])]
     fn proc_task() {
         let dbg = &mut resources.itm.stim[0];
 
@@ -603,6 +603,9 @@ const APP: () = {
                 }
                 Actions::Debug(e) => {
                     iprintln!(dbg, "event: {:?}", e);
+                }
+                Actions::Clean(c) => {
+                    resources.cleaner.clean(c);
                 }
                 _ => {}
             }

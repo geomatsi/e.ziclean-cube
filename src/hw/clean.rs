@@ -1,3 +1,4 @@
+use crate::sw::comm::Clean;
 use embedded_hal::PwmPin;
 use stm32f1xx_hal as hal;
 
@@ -34,22 +35,37 @@ impl Cleaner {
     }
 
     pub fn stop(&mut self) {
-        self.brush.enable();
-        self.pump.enable();
-    }
-
-    pub fn start(&mut self) {
         self.brush.disable();
         self.pump.disable();
     }
 
     pub fn slow(&mut self) {
+        self.brush.enable();
         self.brush.set_duty(self.slow);
+
+        self.pump.enable();
         self.pump.set_duty(self.slow);
     }
 
     pub fn fast(&mut self) {
+        self.brush.enable();
         self.brush.set_duty(self.fast);
+
+        self.pump.enable();
         self.pump.set_duty(self.fast);
+    }
+
+    pub fn clean(&mut self, action: Clean) {
+        match action {
+            Clean::None => {
+                self.stop();
+            }
+            Clean::Slow => {
+                self.slow();
+            }
+            Clean::Fast => {
+                self.fast();
+            }
+        }
     }
 }

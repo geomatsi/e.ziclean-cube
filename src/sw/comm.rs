@@ -146,6 +146,7 @@ pub enum Gear {
 /// Cleaner gear: brushes and pump
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Clean {
+    None,
     Slow,
     Fast,
 }
