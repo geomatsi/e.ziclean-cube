@@ -9,6 +9,8 @@ use core::cmp::Ordering;
 pub enum Events {
     /// Empty event
     None,
+    /// HeartBeat
+    HeartBeat,
     /// Battery low event
     BatteryLow,
     /// Accelerometer Event: motion (X-axis motion, Y-axis motion, Z-axis motion)
@@ -39,6 +41,7 @@ impl Events {
     fn prio(self) -> u8 {
         match self {
             Events::None => 0u8,
+            Events::HeartBeat => 5u8,
             Events::Dock(_) => 10u8,
             Events::Charger(_) => 20u8,
             Events::Battery(_) => 25u8,
@@ -73,6 +76,10 @@ impl Ord for Events {
         match self {
             Events::None => match other {
                 Events::None => Ordering::Equal,
+                _ => self.prio().cmp(&other.prio()),
+            },
+            Events::HeartBeat => match other {
+                Events::HeartBeat => Ordering::Equal,
                 _ => self.prio().cmp(&other.prio()),
             },
             Events::Charger(_) => match other {

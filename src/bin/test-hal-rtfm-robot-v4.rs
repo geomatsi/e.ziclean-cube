@@ -141,6 +141,7 @@ const MSEC_PERIOD: u32 = 8000; /* 1 msec */
 const PROC_PERIOD: u32 = 400_000; /* 50 msec */
 const SENSE_PERIOD: u32 = 800_000; /* 100 msec */
 const POWER_PERIOD: u32 = 80_000_000; /* 10 sec */
+const HBEAT_PERIOD: u32 = 4_000_000; /* 500 msec */
 
 const IR_FREQ: u32 = 5000;
 const IR_PERIOD: u32 = 8_000_000 / IR_FREQ;
@@ -196,7 +197,7 @@ const APP: () = {
     static mut ir_decoder: IRReceiver = ();
     static mut ir_count: u32 = ();
 
-    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_decode_task, ir_enable_task, beep_stop_task])]
+    #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_decode_task, ir_enable_task, beep_stop_task, hb_task])]
     fn init() {
         let mut rcc = device.RCC.constrain();
         let dbg = &mut core.ITM.stim[0];
@@ -527,6 +528,9 @@ const APP: () = {
         schedule
             .ir_enable_task(Instant::now() + IR_WAIT_PERIOD.cycles())
             .unwrap();
+        schedule
+            .hb_task(Instant::now() + HBEAT_PERIOD.cycles())
+            .unwrap();
 
         /*
          * init late resources
@@ -717,6 +721,12 @@ const APP: () = {
                     .unwrap();
             }
         }
+    }
+
+    #[task(schedule = [hb_task], resources = [brain])]
+    fn hb_task() {
+        resources.brain.notify(Events::HeartBeat);
+        schedule.hb_task(scheduled + HBEAT_PERIOD.cycles()).unwrap();
     }
 
     #[task(resources = [beeper])]
