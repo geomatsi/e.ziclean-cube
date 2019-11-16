@@ -125,9 +125,9 @@ fn delay(count: u32) {
 fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     let nvic = &mut cp.NVIC;
 
-    nvic.enable(stm32::Interrupt::EXTI15_10);
-
     unsafe {
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::EXTI15_10);
+
         nvic.set_priority(stm32::Interrupt::EXTI15_10, 1);
     }
 

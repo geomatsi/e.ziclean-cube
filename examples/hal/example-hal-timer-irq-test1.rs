@@ -74,19 +74,19 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     let nvic = &mut cp.NVIC;
 
     // Enable TIM3 IRQ, set prio 1 and clear any pending IRQs
-    nvic.enable(stm32::Interrupt::TIM2);
-    nvic.enable(stm32::Interrupt::TIM3);
-    nvic.enable(stm32::Interrupt::TIM4);
-
-    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM2);
-    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM3);
-    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM4);
-
     unsafe {
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::TIM2);
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::TIM3);
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::TIM4);
+
         nvic.set_priority(stm32::Interrupt::TIM2, 1);
         nvic.set_priority(stm32::Interrupt::TIM3, 1);
         nvic.set_priority(stm32::Interrupt::TIM4, 1);
     }
+
+    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM2);
+    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM3);
+    cm::peripheral::NVIC::unpend(stm32::Interrupt::TIM4);
 }
 
 #[interrupt]

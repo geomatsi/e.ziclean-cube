@@ -140,9 +140,9 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
     let nvic = &mut cp.NVIC;
 
     // Enable EXTI9_5, set prio 1, clear any pending IRQs
-    nvic.enable(stm32::Interrupt::EXTI9_5);
-
     unsafe {
+        cm::peripheral::NVIC::unmask(stm32::Interrupt::EXTI9_5);
+
         nvic.set_priority(stm32::Interrupt::EXTI9_5, 1);
     }
 
