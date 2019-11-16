@@ -64,23 +64,8 @@ features = ["stm32f101", "rt"]
 # main
 
 [[bin]]
-name = "test-hal-rtfm-robot-v1"
-path = "src/bin/test-hal-rtfm-robot-v1.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-rtfm-robot-v2"
-path = "src/bin/test-hal-rtfm-robot-v2.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-rtfm-robot-v3"
-path = "src/bin/test-hal-rtfm-robot-v3.rs"
-required-features = [ "hal" ]
-
-[[bin]]
-name = "test-hal-rtfm-robot-v4"
-path = "src/bin/test-hal-rtfm-robot-v4.rs"
+name = "platform-v1"
+path = "src/bin/platform-v1.rs"
 required-features = [ "hal" ]
 
 # hal examples
@@ -226,3 +211,20 @@ required-features = [ "ral" ]
 name = "example-ral-pwm-wheels"
 path = "examples/ral/example-ral-pwm-wheels.rs"
 required-features = [ "ral" ]
+
+[[example]]
+name = "example-hal-rtfm-robot-v1"
+path = "examples/hal/example-hal-rtfm-robot-v1.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-rtfm-robot-v2"
+path = "examples/hal/example-hal-rtfm-robot-v2.rs"
+required-features = [ "hal" ]
+
+[[example]]
+name = "example-hal-rtfm-robot-v3"
+path = "examples/hal/example-hal-rtfm-robot-v3.rs"
+required-features = [ "hal" ]
+
+
