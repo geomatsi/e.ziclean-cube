@@ -12,7 +12,8 @@ use embedded_hal::digital::v2::OutputPin;
 use panic_itm as _;
 
 use rtfm::app;
-use rtfm::Instant;
+use rtfm::cyccnt::Instant;
+use rtfm::cyccnt::U32Ext;
 
 use hal::adc;
 use hal::adc::Scan;
@@ -150,63 +151,65 @@ const IR_ERR_PERIOD: u32 = 200_000; /* 25 msec */
 
 /* */
 
-#[app(device = stm32f1xx_hal::stm32)]
+#[app(device = stm32f1xx_hal::stm32, peripherals = true, monotonic = rtfm::cyccnt::CYCCNT)]
 const APP: () = {
-    // controller: 'Brain'
-    static mut brain: DebugBrain = ();
+    struct Resources {
+        // controller: 'Brain'
+        brain: DebugBrain,
 
-    // basic hardware resources
-    static mut exti: stm32::EXTI = ();
-    static mut itm: stm32::ITM = ();
+        // basic hardware resources
+        exti: stm32::EXTI,
+        itm: stm32::ITM,
 
-    // buttons and chargers
-    static mut dock: DockGpioType = ();
-    static mut button: ButtonGpioType = ();
-    static mut charger: ChargerGpioType = ();
-    static mut battery: BatteryGpioType = ();
+        // buttons and chargers
+        dock: DockGpioType,
+        button: ButtonGpioType,
+        charger: ChargerGpioType,
+        battery: BatteryGpioType,
 
-    // analog readings using DMA
-    static mut transfer: Option<Transfer<W, DmaBufType, AdcDmaType>> = ();
-    static mut adc_dma: Option<AdcDmaType> = ();
-    static mut buffer: Option<DmaBufType> = ();
-    static mut mode: AdcDmaMode = ();
+        // analog readings using DMA
+        transfer: Option<Transfer<W, DmaBufType, AdcDmaType>>,
+        adc_dma: Option<AdcDmaType>,
+        buffer: Option<DmaBufType>,
+        mode: AdcDmaMode,
 
-    static mut front_leds: FrontSensorLedType = ();
-    static mut front_buf: FrontSensorsBufType = ();
+        front_leds: FrontSensorLedType,
+        front_buf: FrontSensorsBufType,
 
-    static mut bottom_leds: BottomSensorLedType = ();
-    static mut bottom_buf: BottomSensorsBufType = ();
+        bottom_leds: BottomSensorLedType,
+        bottom_buf: BottomSensorsBufType,
 
-    // Motion control
-    static mut drive: Motion = ();
+        // Motion control
+        drive: Motion,
 
-    // Cleaner control
-    static mut cleaner: Cleaner = ();
+        // Cleaner control
+        cleaner: Cleaner,
 
-    // Display
-    static mut screen: Display<SpiScreen, SpiStbType> = ();
+        // Display
+        screen: Display<SpiScreen, SpiStbType>,
 
-    // Accelerometer
-    static mut accel: Kxcj9<I2cAccel, G8Device> = ();
+        // Accelerometer
+        accel: Kxcj9<I2cAccel, G8Device>,
 
-    // Beeper
-    static mut beeper: Beeper<PollTimer, BeepGpioType> = ();
+        // Beeper
+        beeper: Beeper<PollTimer, BeepGpioType>,
 
-    // IR RC
-    static mut ir_pin: InfraredTopGpioType = ();
-    static mut ir_decoder: IRReceiver = ();
-    static mut ir_count: u32 = ();
+        // IR RC
+        ir_pin: InfraredTopGpioType,
+        ir_decoder: IRReceiver,
+        ir_count: u32,
+    }
 
     #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_decode_task, ir_enable_task, beep_stop_task, hb_task])]
-    fn init() {
-        let mut rcc = device.RCC.constrain();
-        let dbg = &mut core.ITM.stim[0];
+    fn init(mut cx: init::Context) -> init::LateResources {
+        let mut rcc = cx.device.RCC.constrain();
+        let dbg = &mut cx.core.ITM.stim[0];
 
         // setup control center
         let brain = DebugBrain::create();
 
         // configure clocks
-        let mut flash = device.FLASH.constrain();
+        let mut flash = cx.device.FLASH.constrain();
         let clocks = rcc
             .cfgr
             .sysclk(8.mhz())
@@ -217,13 +220,13 @@ const APP: () = {
         iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
         iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
 
-        let mut gpioa = device.GPIOA.split(&mut rcc.apb2);
-        let mut gpiob = device.GPIOB.split(&mut rcc.apb2);
-        let mut gpioc = device.GPIOC.split(&mut rcc.apb2);
-        let mut gpiod = device.GPIOD.split(&mut rcc.apb2);
-        let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
+        let mut gpioa = cx.device.GPIOA.split(&mut rcc.apb2);
+        let mut gpiob = cx.device.GPIOB.split(&mut rcc.apb2);
+        let mut gpioc = cx.device.GPIOC.split(&mut rcc.apb2);
+        let mut gpiod = cx.device.GPIOD.split(&mut rcc.apb2);
+        let mut gpioe = cx.device.GPIOE.split(&mut rcc.apb2);
 
-        let mut afio = device.AFIO.constrain(&mut rcc.apb2);
+        let mut afio = cx.device.AFIO.constrain(&mut rcc.apb2);
 
         /*
          * Motion controls
@@ -240,7 +243,7 @@ const APP: () = {
         let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-        let pwm = Timer::tim4(device.TIM4, &clocks, &mut rcc.apb1).pwm(
+        let pwm = Timer::tim4(cx.device.TIM4, &clocks, &mut rcc.apb1).pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
             500.hz(),
@@ -291,11 +294,11 @@ const APP: () = {
         let ch2 = gpioa.pa2.into_analog(&mut gpioa.crl);
 
         // dma channel #1
-        let mut dma_ch1 = device.DMA1.split(&mut rcc.ahb).1;
+        let mut dma_ch1 = cx.device.DMA1.split(&mut rcc.ahb).1;
         dma_ch1.listen(dma::Event::TransferComplete);
 
         // setup ADC
-        let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
+        let adc = adc::Adc::adc1(cx.device.ADC1, &mut rcc.apb2, clocks);
 
         // configure ADC+DMA
         let adc_pins = AdcPins(ch1, ch2, ch4, ch6, ch7, ch8, ch9, ch10, ch11, ch15);
@@ -316,9 +319,9 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti1().bits(0b0011) });
 
         // enable EXTI1 line and configure interrupt on both falling and rising edges
-        device.EXTI.imr.modify(|_, w| w.mr1().set_bit());
-        device.EXTI.ftsr.modify(|_, w| w.tr1().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr1().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr1().set_bit());
+        cx.device.EXTI.ftsr.modify(|_, w| w.tr1().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr1().set_bit());
 
         /*
          * Wheel encoders
@@ -348,11 +351,11 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti12().bits(0b0010) });
 
         // enable EXTI8 and EXTI12 lines and configure interrupt on rising edge
-        device.EXTI.imr.modify(|_, w| w.mr8().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr8().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr8().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr8().set_bit());
 
-        device.EXTI.imr.modify(|_, w| w.mr12().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr12().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr12().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr12().set_bit());
 
         /*
          * Charging cable detection
@@ -367,9 +370,9 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti4().bits(0b0100) });
 
         // enable EXTI4 and configure interrupt on rising and falling edge
-        device.EXTI.imr.modify(|_, w| w.mr4().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr4().set_bit());
-        device.EXTI.ftsr.modify(|_, w| w.tr4().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr4().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr4().set_bit());
+        cx.device.EXTI.ftsr.modify(|_, w| w.tr4().set_bit());
 
         /*
          * Dock station detection
@@ -384,9 +387,9 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti5().bits(0b0100) });
 
         // enable EXTI5 and configure interrupt on rising and falling edge
-        device.EXTI.imr.modify(|_, w| w.mr5().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr5().set_bit());
-        device.EXTI.ftsr.modify(|_, w| w.tr5().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr5().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr5().set_bit());
+        cx.device.EXTI.ftsr.modify(|_, w| w.tr5().set_bit());
 
         /*
          * Battery presence detection
@@ -401,9 +404,9 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti6().bits(0b0100) });
 
         // enable EXTI6 and configure interrupt on rising and falling edge
-        device.EXTI.imr.modify(|_, w| w.mr6().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr6().set_bit());
-        device.EXTI.ftsr.modify(|_, w| w.tr6().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr6().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr6().set_bit());
+        cx.device.EXTI.ftsr.modify(|_, w| w.tr6().set_bit());
 
         /*
          * Beeper
@@ -425,7 +428,7 @@ const APP: () = {
         let pb4 = pb4.into_alternate_push_pull(&mut gpiob.crl);
         let pb5 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
-        let (pump, brush) = Timer::tim3(device.TIM3, &clocks, &mut rcc.apb1).pwm(
+        let (pump, brush) = Timer::tim3(cx.device.TIM3, &clocks, &mut rcc.apb1).pwm(
             Brushes(pb4, pb5),
             &mut afio.mapr,
             10.khz(),
@@ -483,8 +486,8 @@ const APP: () = {
             .exticr3()
             .modify(|_, w| unsafe { w.exti9().bits(0b0100) });
 
-        device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
+        cx.device.EXTI.imr.modify(|_, w| w.mr9().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr9().set_bit());
 
         let scl = gpioe.pe7.into_open_drain_output(&mut gpioe.crl);
         let sda = gpiob.pb2.into_open_drain_output(&mut gpiob.crl);
@@ -508,27 +511,34 @@ const APP: () = {
             .modify(|_, w| unsafe { w.exti15().bits(0b0011) });
 
         // configure interrupt on falling edge
-        device.EXTI.ftsr.modify(|_, w| w.tr15().set_bit());
-        device.EXTI.rtsr.modify(|_, w| w.tr15().clear_bit());
+        cx.device.EXTI.ftsr.modify(|_, w| w.tr15().set_bit());
+        cx.device.EXTI.rtsr.modify(|_, w| w.tr15().clear_bit());
+
+        /*
+         * Enable the monotonic timer based on CYCCNT
+         *
+         */
+        cx.core.DCB.enable_trace();
+        cx.core.DWT.enable_cycle_counter();
 
         /*
          * schedule tasks
          *
          */
-        schedule.init_task(Instant::now()).unwrap();
-        schedule
+        cx.schedule.init_task(Instant::now()).unwrap();
+        cx.schedule
             .proc_task(Instant::now() + PROC_PERIOD.cycles())
             .unwrap();
-        schedule
+        cx.schedule
             .start_adc_dma_task(Instant::now() + SENSE_PERIOD.cycles())
             .unwrap();
-        schedule
+        cx.schedule
             .power_task(Instant::now() + POWER_PERIOD.cycles())
             .unwrap();
-        schedule
+        cx.schedule
             .ir_enable_task(Instant::now() + IR_WAIT_PERIOD.cycles())
             .unwrap();
-        schedule
+        cx.schedule
             .hb_task(Instant::now() + HBEAT_PERIOD.cycles())
             .unwrap();
 
@@ -537,34 +547,36 @@ const APP: () = {
          *
          */
 
-        brain = brain;
-        itm = core.ITM;
-        exti = device.EXTI;
-        transfer = None;
-        adc_dma = Some(adc_dma);
-        buffer = Some(buffer);
-        front_buf = front_buffer;
-        front_leds = front_leds;
-        bottom_buf = bottom_buffer;
-        bottom_leds = bottom_leds;
-        mode = AdcDmaMode {
-            count: 0,
-            obstacle: false,
-            drop: false,
-            leds: false,
-        };
-        drive = m;
-        screen = scr;
-        accel = acc;
-        dock = dock;
-        button = button;
-        charger = charger;
-        battery = battery;
-        beeper = beeper;
-        cleaner = cleaner;
-        ir_decoder = ird;
-        ir_count = 0;
-        ir_pin = irr;
+        init::LateResources {
+            brain: brain,
+            itm: cx.core.ITM,
+            exti: cx.device.EXTI,
+            transfer: None,
+            adc_dma: Some(adc_dma),
+            buffer: Some(buffer),
+            front_buf: front_buffer,
+            front_leds: front_leds,
+            bottom_buf: bottom_buffer,
+            bottom_leds: bottom_leds,
+            mode: AdcDmaMode {
+                count: 0,
+                obstacle: false,
+                drop: false,
+                leds: false,
+            },
+            drive: m,
+            screen: scr,
+            accel: acc,
+            dock: dock,
+            button: button,
+            charger: charger,
+            battery: battery,
+            beeper: beeper,
+            cleaner: cleaner,
+            ir_decoder: ird,
+            ir_count: 0,
+            ir_pin: irr,
+        }
     }
 
     /*
@@ -572,19 +584,10 @@ const APP: () = {
      *
      */
     #[idle]
-    fn idle() -> ! {
+    fn idle(_: idle::Context) -> ! {
         loop {
             cm::asm::wfi();
         }
-    }
-
-    /*
-     * This interrupt is used to dispatch timer queue tasks.
-     * TODO:  not all interrupts work here, e.g. UART4 does not work
-     *
-     */
-    extern "C" {
-        fn EXTI2();
     }
 
     /*
@@ -592,17 +595,17 @@ const APP: () = {
      *
      */
     #[task(schedule = [proc_task, beep_stop_task], resources = [itm, brain, beeper, cleaner, drive, screen])]
-    fn proc_task() {
-        let dbg = &mut resources.itm.stim[0];
+    fn proc_task(cx: proc_task::Context) {
+        let dbg = &mut cx.resources.itm.stim[0];
 
-        while resources.brain.ready() {
-            match resources.brain.action() {
+        while cx.resources.brain.ready() {
+            match cx.resources.brain.action() {
                 Actions::None => {
                     break;
                 }
                 Actions::Beep(msecs) => {
-                    resources.beeper.beep_on();
-                    schedule
+                    cx.resources.beeper.beep_on();
+                    cx.schedule
                         .beep_stop_task(Instant::now() + (msecs * MSEC_PERIOD).cycles())
                         .unwrap();
                 }
@@ -610,37 +613,37 @@ const APP: () = {
                     iprintln!(dbg, "event: {:?}", e);
                 }
                 Actions::Clean(c) => {
-                    resources.cleaner.clean(c);
+                    cx.resources.cleaner.clean(c);
                 }
                 Actions::Motion(direction, gear) => {
-                    resources.drive.motion(direction, gear).unwrap();
+                    cx.resources.drive.motion(direction, gear).unwrap();
                 }
                 Actions::Rotation(direction, gear) => {
-                    resources.drive.rotate(direction, gear).unwrap();
+                    cx.resources.drive.rotate(direction, gear).unwrap();
                 }
                 Actions::Wheels((ld, lg), (rd, rg)) => {
-                    resources.drive.set_left_wheel(ld, lg).unwrap();
-                    resources.drive.set_right_wheel(rd, rg).unwrap();
+                    cx.resources.drive.set_left_wheel(ld, lg).unwrap();
+                    cx.resources.drive.set_right_wheel(rd, rg).unwrap();
                 }
                 Actions::Display(data) => match data {
                     View::Number(num) => {
-                        resources.screen.print_num(num).unwrap();
+                        cx.resources.screen.print_num(num).unwrap();
                     }
                     View::Time(hh, mm, cn) => {
-                        resources.screen.print_time([hh, mm], cn).unwrap();
+                        cx.resources.screen.print_time([hh, mm], cn).unwrap();
                     }
                     View::Digits(nums) => {
-                        resources.screen.print4(nums).unwrap();
+                        cx.resources.screen.print4(nums).unwrap();
                     }
                     View::Clear => {
-                        resources.screen.clear().unwrap();
+                        cx.resources.screen.clear().unwrap();
                     }
                 },
             }
         }
 
-        schedule
-            .proc_task(scheduled + PROC_PERIOD.cycles())
+        cx.schedule
+            .proc_task(cx.scheduled + PROC_PERIOD.cycles())
             .unwrap();
     }
 
@@ -650,10 +653,10 @@ const APP: () = {
      */
 
     #[task(resources = [itm, screen, accel])]
-    fn init_task() {
-        let _dbg = &mut resources.itm.stim[0];
-        let mut scr = resources.screen;
-        let mut acc = resources.accel;
+    fn init_task(cx: init_task::Context) {
+        let _dbg = &mut cx.resources.itm.stim[0];
+        let scr = cx.resources.screen;
+        let acc = cx.resources.accel;
 
         // init display
         scr.enable().unwrap();
@@ -692,52 +695,54 @@ const APP: () = {
      *
      */
     #[task(schedule = [ir_decode_task, ir_enable_task], resources = [itm, ir_pin, ir_count, ir_decoder, exti, brain])]
-    fn ir_decode_task() {
-        let dbg = &mut resources.itm.stim[0];
-        let val = resources.ir_pin.is_high().unwrap();
+    fn ir_decode_task(cx: ir_decode_task::Context) {
+        let dbg = &mut cx.resources.itm.stim[0];
+        let val = cx.resources.ir_pin.is_high().unwrap();
 
-        match resources.ir_decoder.sample(val, *resources.ir_count) {
+        match cx.resources.ir_decoder.sample(val, *cx.resources.ir_count) {
             ReceiverResult::Done(v) => {
                 let e = Events::InfraredCommand(v);
-                resources.brain.notify(e);
-                resources.ir_decoder.reset();
-                *resources.ir_count = 0;
-                schedule
+                cx.resources.brain.notify(e);
+                cx.resources.ir_decoder.reset();
+                *cx.resources.ir_count = 0;
+                cx.schedule
                     .ir_enable_task(Instant::now() + IR_WAIT_PERIOD.cycles())
                     .unwrap();
             }
             ReceiverResult::Fail(e) => {
                 iprintln!(dbg, "ir: err: {}", e);
-                resources.ir_decoder.reset();
-                *resources.ir_count = 0;
-                schedule
+                cx.resources.ir_decoder.reset();
+                *cx.resources.ir_count = 0;
+                cx.schedule
                     .ir_enable_task(Instant::now() + IR_ERR_PERIOD.cycles())
                     .unwrap();
             }
             ReceiverResult::Proc => {
-                *resources.ir_count = resources.ir_count.wrapping_add(1);
-                schedule
-                    .ir_decode_task(scheduled + IR_PERIOD.cycles())
+                *cx.resources.ir_count = cx.resources.ir_count.wrapping_add(1);
+                cx.schedule
+                    .ir_decode_task(cx.scheduled + IR_PERIOD.cycles())
                     .unwrap();
             }
         }
     }
 
     #[task(schedule = [hb_task], resources = [brain])]
-    fn hb_task() {
-        resources.brain.notify(Events::HeartBeat);
-        schedule.hb_task(scheduled + HBEAT_PERIOD.cycles()).unwrap();
+    fn hb_task(cx: hb_task::Context) {
+        cx.resources.brain.notify(Events::HeartBeat);
+        cx.schedule
+            .hb_task(cx.scheduled + HBEAT_PERIOD.cycles())
+            .unwrap();
     }
 
     #[task(resources = [beeper])]
-    fn beep_stop_task() {
-        resources.beeper.beep_off();
+    fn beep_stop_task(cx: beep_stop_task::Context) {
+        cx.resources.beeper.beep_off();
     }
 
     #[task(resources = [exti])]
-    fn ir_enable_task() {
+    fn ir_enable_task(cx: ir_enable_task::Context) {
         // enable IR RC interrupts
-        resources.exti.imr.modify(|_, w| w.mr15().set_bit());
+        cx.resources.exti.imr.modify(|_, w| w.mr15().set_bit());
     }
 
     /*
@@ -746,73 +751,73 @@ const APP: () = {
      *   - DMA_CHANNEL1 interrupt reads results
      *   - DMA_CHANNEL1 interrupt schedules start_adc_dma_task
      */
-    #[interrupt(schedule = [start_adc_dma_task], resources = [itm, transfer, adc_dma, buffer, mode, front_leds, bottom_leds, front_buf, bottom_buf, brain])]
-    fn DMA1_CHANNEL1() {
-        let dbg = &mut resources.itm.stim[0];
+    #[task(binds = DMA1_CHANNEL1, schedule = [start_adc_dma_task], resources = [itm, transfer, adc_dma, buffer, mode, front_leds, bottom_leds, front_buf, bottom_buf, brain])]
+    fn dma1_channel1(mut cx: dma1_channel1::Context) {
+        let dbg = &mut cx.resources.itm.stim[0];
 
-        if let Some(xfer) = resources.transfer.take() {
+        if let Some(xfer) = cx.resources.transfer.take() {
             let (buf, mut scan) = xfer.wait();
 
             /* increment adc dma counter */
 
-            resources.mode.count = resources.mode.count.wrapping_add(1);
+            cx.resources.mode.count = cx.resources.mode.count.wrapping_add(1);
 
             /* turn off sensor IR LEDs */
 
-            resources.front_leds.set_low().unwrap();
-            resources.bottom_leds.set_low().unwrap();
+            cx.resources.front_leds.set_low().unwrap();
+            cx.resources.bottom_leds.set_low().unwrap();
 
             /* check front sensor */
 
-            let fll = is_front_obstacle(buf[7], resources.front_buf[0]);
-            let flc = is_front_obstacle(buf[2], resources.front_buf[1]);
-            let fcc = is_front_obstacle(buf[3], resources.front_buf[2]);
-            let frc = is_front_obstacle(buf[9], resources.front_buf[3]);
-            let frr = is_front_obstacle(buf[5], resources.front_buf[4]);
+            let fll = is_front_obstacle(buf[7], cx.resources.front_buf[0]);
+            let flc = is_front_obstacle(buf[2], cx.resources.front_buf[1]);
+            let fcc = is_front_obstacle(buf[3], cx.resources.front_buf[2]);
+            let frc = is_front_obstacle(buf[9], cx.resources.front_buf[3]);
+            let frr = is_front_obstacle(buf[5], cx.resources.front_buf[4]);
 
-            resources.front_buf[0] = buf[7];
-            resources.front_buf[1] = buf[2];
-            resources.front_buf[2] = buf[3];
-            resources.front_buf[3] = buf[9];
-            resources.front_buf[4] = buf[5];
+            cx.resources.front_buf[0] = buf[7];
+            cx.resources.front_buf[1] = buf[2];
+            cx.resources.front_buf[2] = buf[3];
+            cx.resources.front_buf[3] = buf[9];
+            cx.resources.front_buf[4] = buf[5];
 
             if fll || flc || fcc || frc || frr {
-                resources
+                cx.resources
                     .brain
                     .notify(Events::FrontSensor(fll, flc, fcc, frc, frr));
-                resources.mode.obstacle = true;
+                cx.resources.mode.obstacle = true;
             } else {
-                if resources.mode.obstacle {
-                    resources
+                if cx.resources.mode.obstacle {
+                    cx.resources
                         .brain
                         .notify(Events::FrontSensor(fll, flc, fcc, frc, frr));
-                    resources.mode.obstacle = false;
+                    cx.resources.mode.obstacle = false;
                 }
             }
 
             /* check bottom sensor */
 
-            let bl = is_bottom_drop(buf[8], resources.bottom_buf[0]);
-            let bc = is_bottom_drop(buf[4], resources.bottom_buf[1]);
-            let br = is_bottom_drop(buf[6], resources.bottom_buf[2]);
+            let bl = is_bottom_drop(buf[8], cx.resources.bottom_buf[0]);
+            let bc = is_bottom_drop(buf[4], cx.resources.bottom_buf[1]);
+            let br = is_bottom_drop(buf[6], cx.resources.bottom_buf[2]);
 
-            resources.bottom_buf[0] = buf[8];
-            resources.bottom_buf[1] = buf[4];
-            resources.bottom_buf[2] = buf[6];
+            cx.resources.bottom_buf[0] = buf[8];
+            cx.resources.bottom_buf[1] = buf[4];
+            cx.resources.bottom_buf[2] = buf[6];
 
             if bl || bc || br {
-                resources.brain.notify(Events::BottomSensor(bl, bc, br));
-                resources.mode.drop = true;
+                cx.resources.brain.notify(Events::BottomSensor(bl, bc, br));
+                cx.resources.mode.drop = true;
             } else {
-                if resources.mode.drop {
-                    resources.brain.notify(Events::BottomSensor(bl, bc, br));
-                    resources.mode.drop = false;
+                if cx.resources.mode.drop {
+                    cx.resources.brain.notify(Events::BottomSensor(bl, bc, br));
+                    cx.resources.mode.drop = false;
                 }
             }
 
             /* check battery voltage once per 255 cycles: one-shot adc read is needed for vref */
 
-            if resources.mode.count == 0 {
+            if cx.resources.mode.count == 0 {
                 let (mut adc, mut pins, chan) = scan.split();
 
                 let v_ref: u32 = adc.read_vref().into();
@@ -822,7 +827,7 @@ const APP: () = {
                 let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
 
                 if is_battery_low(v_bat) {
-                    resources.brain.notify(Events::BatteryLow);
+                    cx.resources.brain.notify(Events::BatteryLow);
                 }
 
                 scan = adc.with_scan_dma(pins, chan);
@@ -833,10 +838,10 @@ const APP: () = {
 
             /* done with ADC checks */
 
-            *resources.adc_dma = Some(scan);
-            *resources.buffer = Some(buf);
+            *cx.resources.adc_dma = Some(scan);
+            *cx.resources.buffer = Some(buf);
 
-            schedule
+            cx.schedule
                 .start_adc_dma_task(Instant::now() + SENSE_PERIOD.cycles())
                 .unwrap();
         } else {
@@ -845,26 +850,26 @@ const APP: () = {
     }
 
     #[task(resources = [itm, transfer, adc_dma, buffer, front_leds, bottom_leds, mode])]
-    fn start_adc_dma_task() {
-        let dbg = &mut resources.itm.stim[0];
+    fn start_adc_dma_task(cx: start_adc_dma_task::Context) {
+        let dbg = &mut cx.resources.itm.stim[0];
 
-        if let (Some(scan), Some(buf)) = (resources.adc_dma.take(), resources.buffer.take()) {
-            resources.mode.leds = match resources.mode.leds {
+        if let (Some(scan), Some(buf)) = (cx.resources.adc_dma.take(), cx.resources.buffer.take()) {
+            cx.resources.mode.leds = match cx.resources.mode.leds {
                 true => {
-                    resources.front_leds.set_high().unwrap();
-                    resources.bottom_leds.set_high().unwrap();
+                    cx.resources.front_leds.set_high().unwrap();
+                    cx.resources.bottom_leds.set_high().unwrap();
                     false
                 }
                 false => {
-                    resources.front_leds.set_low().unwrap();
-                    resources.bottom_leds.set_low().unwrap();
+                    cx.resources.front_leds.set_low().unwrap();
+                    cx.resources.bottom_leds.set_low().unwrap();
                     true
                 }
             };
 
             /* start next adc dma transfer */
             let xfer = scan.read(buf);
-            *resources.transfer = Some(xfer);
+            *cx.resources.transfer = Some(xfer);
         } else {
             iprintln!(dbg, "IDLE: ERR: no rdma");
         }
@@ -875,94 +880,103 @@ const APP: () = {
      *
      */
     #[task(schedule = [power_task], resources = [itm, dock, charger, battery, brain])]
-    fn power_task() {
-        let _dbg = &mut resources.itm.stim[0];
-        let c = resources.charger.is_high().unwrap_or(false);
-        let b = resources.battery.is_high().unwrap_or(false);
-        let d = resources.dock.is_high().unwrap_or(false);
+    fn power_task(cx: power_task::Context) {
+        let _dbg = &mut cx.resources.itm.stim[0];
+        let c = cx.resources.charger.is_high().unwrap_or(false);
+        let b = cx.resources.battery.is_high().unwrap_or(false);
+        let d = cx.resources.dock.is_high().unwrap_or(false);
 
-        resources.brain.notify(Events::Charger(c));
-        resources.brain.notify(Events::Dock(d));
-        resources.brain.notify(Events::Battery(b));
+        cx.resources.brain.notify(Events::Charger(c));
+        cx.resources.brain.notify(Events::Dock(d));
+        cx.resources.brain.notify(Events::Battery(b));
 
-        schedule
-            .power_task(scheduled + POWER_PERIOD.cycles())
+        cx.schedule
+            .power_task(cx.scheduled + POWER_PERIOD.cycles())
             .unwrap();
     }
 
-    #[interrupt(resources = [exti, screen, button, brain])]
-    fn EXTI1() {
-        let pressed = resources.button.is_low().unwrap_or(false);
+    #[task(binds = EXTI1, resources = [exti, screen, button, brain])]
+    fn exti1(cx: exti1::Context) {
+        let pressed = cx.resources.button.is_low().unwrap_or(false);
         let e = Events::Button(pressed);
 
-        resources.screen.print_num(0000).ok();
-        resources.exti.pr.modify(|_, w| w.pr1().set_bit());
-        resources.brain.notify(e);
+        cx.resources.screen.print_num(0000).ok();
+        cx.resources.exti.pr.modify(|_, w| w.pr1().set_bit());
+        cx.resources.brain.notify(e);
     }
 
-    #[interrupt(resources = [exti, charger, screen, brain])]
-    fn EXTI4() {
-        let plugged = resources.charger.is_high().unwrap_or(false);
+    #[task(resources = [exti, charger, screen, brain])]
+    fn exti4(cx: exti4::Context) {
+        let plugged = cx.resources.charger.is_high().unwrap_or(false);
         let e = Events::Charger(plugged);
 
-        resources.screen.print_num(1111).ok();
-        resources.exti.pr.modify(|_, w| w.pr4().set_bit());
-        resources.brain.notify(e);
+        cx.resources.screen.print_num(1111).ok();
+        cx.resources.exti.pr.modify(|_, w| w.pr4().set_bit());
+        cx.resources.brain.notify(e);
     }
 
-    #[interrupt(resources = [exti, screen, accel, dock, battery, brain])]
-    fn EXTI9_5() {
-        let r = resources.exti.pr.read();
+    #[task(binds = EXTI9_5, resources = [exti, screen, accel, dock, battery, brain])]
+    fn exti9_5(cx: exti9_5::Context) {
+        let r = cx.resources.exti.pr.read();
 
         if r.pr5().bit_is_set() {
-            let d = resources.dock.is_high().unwrap_or(false);
+            let d = cx.resources.dock.is_high().unwrap_or(false);
             let e = Events::Dock(d);
-            resources.exti.pr.modify(|_, w| w.pr5().set_bit());
-            resources.brain.notify(e);
+            cx.resources.exti.pr.modify(|_, w| w.pr5().set_bit());
+            cx.resources.brain.notify(e);
         }
 
         if r.pr6().bit_is_set() {
-            let b = resources.battery.is_high().unwrap_or(false);
+            let b = cx.resources.battery.is_high().unwrap_or(false);
             let e = Events::Battery(b);
-            resources.exti.pr.modify(|_, w| w.pr6().set_bit());
-            resources.brain.notify(e);
+            cx.resources.exti.pr.modify(|_, w| w.pr6().set_bit());
+            cx.resources.brain.notify(e);
         }
 
         if r.pr8().bit_is_set() {
-            resources.exti.pr.modify(|_, w| w.pr8().set_bit());
+            cx.resources.exti.pr.modify(|_, w| w.pr8().set_bit());
             // TODO: collect right wheel encoder data
         }
 
         if r.pr9().bit_is_set() {
-            let info = resources.accel.read_interrupt_info().unwrap();
+            let info = cx.resources.accel.read_interrupt_info().unwrap();
             let x = info.wake_up_x_negative | info.wake_up_x_positive;
             let y = info.wake_up_y_negative | info.wake_up_y_positive;
             let z = info.wake_up_z_negative | info.wake_up_z_positive;
             let e = Events::Accel(x, y, z);
 
-            resources.screen.print_num(2222).ok();
-            resources.accel.clear_interrupts().unwrap();
-            resources.exti.pr.modify(|_, w| w.pr9().set_bit());
-            resources.brain.notify(e);
+            cx.resources.screen.print_num(2222).ok();
+            cx.resources.accel.clear_interrupts().unwrap();
+            cx.resources.exti.pr.modify(|_, w| w.pr9().set_bit());
+            cx.resources.brain.notify(e);
         }
     }
 
-    #[interrupt(schedule = [ir_decode_task], resources = [exti])]
-    fn EXTI15_10() {
-        let r = resources.exti.pr.read();
+    #[task(binds = EXTI15_10, schedule = [ir_decode_task], resources = [exti])]
+    fn exti15_10(cx: exti15_10::Context) {
+        let r = cx.resources.exti.pr.read();
 
         if r.pr12().bit_is_set() {
-            resources.exti.pr.modify(|_, w| w.pr12().set_bit());
+            cx.resources.exti.pr.modify(|_, w| w.pr12().set_bit());
             // TODO: collect left wheel encoder data
         }
 
         if r.pr15().bit_is_set() {
             // acknowledge and disable IR pin interrupt
-            resources.exti.pr.modify(|_, w| w.pr15().set_bit());
-            resources.exti.imr.modify(|_, w| w.mr15().clear_bit());
-            schedule
+            cx.resources.exti.pr.modify(|_, w| w.pr15().set_bit());
+            cx.resources.exti.imr.modify(|_, w| w.mr15().clear_bit());
+            cx.schedule
                 .ir_decode_task(Instant::now() + IR_PERIOD.cycles())
                 .unwrap();
         }
+    }
+
+    /*
+     * This interrupt is used to dispatch timer queue tasks.
+     * TODO:  not all interrupts work here, e.g. UART4 does not work
+     *
+     */
+    extern "C" {
+        fn EXTI2();
     }
 };

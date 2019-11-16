@@ -29,23 +29,23 @@ use eziclean::sw::comm::{Direction, Gear, Rotation};
 
 /* */
 
-#[app(device = stm32f1xx_hal::stm32)]
+#[app(device = stm32f1xx_hal::stm32, peripherals = true, monotonic = rtfm::cyccnt::CYCCNT)]
 const APP: () = {
     // basic hardware resources
-    static mut tmr2: timer::CountDownTimer<stm32::TIM2> = ();
-    static mut itm: hal::stm32::ITM = ();
-    // analog readings
-    static mut analog: Analog = ();
-    // Motion control
-    static mut drive: Motion = ();
+    struct Resources {
+        tmr2: timer::CountDownTimer<stm32::TIM2>,
+        itm: hal::stm32::ITM,
+        analog: Analog,
+        drive: Motion,
+    }
 
     #[init]
-    fn init() {
-        let mut rcc = device.RCC.constrain();
-        let dbg = &mut core.ITM.stim[0];
+    fn init(mut cx: init::Context) -> init::LateResources {
+        let mut rcc = cx.device.RCC.constrain();
+        let dbg = &mut cx.core.ITM.stim[0];
 
         // configure clocks
-        let mut flash = device.FLASH.constrain();
+        let mut flash = cx.device.FLASH.constrain();
         let clocks = rcc
             .cfgr
             .sysclk(8.mhz())
@@ -57,11 +57,11 @@ const APP: () = {
         iprintln!(dbg, "PCLK2: {} Hz ...", clocks.pclk2().0);
         iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
 
-        let mut gpioa = device.GPIOA.split(&mut rcc.apb2);
-        let mut gpiob = device.GPIOB.split(&mut rcc.apb2);
-        let mut gpioc = device.GPIOC.split(&mut rcc.apb2);
-        let mut gpiod = device.GPIOD.split(&mut rcc.apb2);
-        let mut gpioe = device.GPIOE.split(&mut rcc.apb2);
+        let mut gpioa = cx.device.GPIOA.split(&mut rcc.apb2);
+        let mut gpiob = cx.device.GPIOB.split(&mut rcc.apb2);
+        let mut gpioc = cx.device.GPIOC.split(&mut rcc.apb2);
+        let mut gpiod = cx.device.GPIOD.split(&mut rcc.apb2);
+        let mut gpioe = cx.device.GPIOE.split(&mut rcc.apb2);
 
         /* Motion controls */
 
@@ -75,8 +75,8 @@ const APP: () = {
         let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
         let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-        let mut afio = device.AFIO.constrain(&mut rcc.apb2);
-        let pwm = timer::Timer::tim4(device.TIM4, &clocks, &mut rcc.apb1).pwm(
+        let mut afio = cx.device.AFIO.constrain(&mut rcc.apb2);
+        let pwm = timer::Timer::tim4(cx.device.TIM4, &clocks, &mut rcc.apb1).pwm(
             (c1, c2, c3, c4),
             &mut afio.mapr,
             500.hz(),
@@ -103,7 +103,7 @@ const APP: () = {
         /* Analog measurements */
 
         // ADC setup
-        let adc = adc::Adc::adc1(device.ADC1, &mut rcc.apb2, clocks);
+        let adc = adc::Adc::adc1(cx.device.ADC1, &mut rcc.apb2, clocks);
         let mut a = Analog::init(adc, adc::SampleTime::T_13);
 
         // front sensor channels
@@ -125,25 +125,29 @@ const APP: () = {
         /* configure and start TIM2 periodic timer */
 
         let mut t2 =
-            timer::Timer::tim2(device.TIM2, &clocks, &mut rcc.apb1).start_count_down(50.hz());
+            timer::Timer::tim2(cx.device.TIM2, &clocks, &mut rcc.apb1).start_count_down(50.hz());
         t2.listen(timer::Event::Update);
 
         /* init late resources */
 
-        tmr2 = t2;
-        itm = core.ITM;
-        analog = a;
-        drive = m;
+        init::LateResources {
+            tmr2: t2,
+            itm: cx.core.ITM,
+            analog: a,
+            drive: m,
+        }
     }
 
     #[idle()]
-    fn idle() -> ! {
+    fn idle(_: idle::Context) -> ! {
         loop {
             cm::asm::wfi();
         }
     }
 
-    #[interrupt(resources = [
+    #[task(
+        binds = TIM2,
+        resources = [
                 // hardware units
                 tmr2, itm,
                 // analog readings
@@ -151,12 +155,12 @@ const APP: () = {
                 // motion control
                 drive
     ])]
-    fn TIM2() {
-        let dbg = &mut resources.itm.stim[0];
-        let max_range: u16 = resources.analog.get_max_sample();
+    fn tim2(cx: tim2::Context) {
+        let dbg = &mut cx.resources.itm.stim[0];
+        let max_range: u16 = cx.resources.analog.get_max_sample();
 
-        let front = resources.analog.get_front_sensors(true).unwrap();
-        let bottom = resources.analog.get_bottom_sensors(true).unwrap();
+        let front = cx.resources.analog.get_front_sensors(true).unwrap();
+        let bottom = cx.resources.analog.get_bottom_sensors(true).unwrap();
 
         iprintln!(
             dbg,
@@ -168,10 +172,10 @@ const APP: () = {
             front.frr
         );
 
-        let (dl, dc, dr) = make_decision(resources.drive, front, bottom, max_range).unwrap();
+        let (dl, dc, dr) = make_decision(cx.resources.drive, front, bottom, max_range).unwrap();
         iprintln!(dbg, "decision input: {} {} {}", dl, dc, dr);
 
-        resources.tmr2.start(5.hz());
+        cx.resources.tmr2.start(5.hz());
     }
 };
 

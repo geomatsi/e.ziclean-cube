@@ -1,6 +1,6 @@
 use embedded_hal::timer::CountDown;
 use embedded_hal::timer::Periodic;
-use rtfm::Instant;
+use rtfm::cyccnt::Instant;
 use stm32f1xx_hal::time::*;
 use void::Void;
 
