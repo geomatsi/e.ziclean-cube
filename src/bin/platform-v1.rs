@@ -905,7 +905,7 @@ const APP: () = {
         cx.resources.brain.notify(e);
     }
 
-    #[task(resources = [exti, charger, screen, brain])]
+    #[task(binds = EXTI4, resources = [exti, charger, screen, brain])]
     fn exti4(cx: exti4::Context) {
         let plugged = cx.resources.charger.is_high().unwrap_or(false);
         let e = Events::Charger(plugged);
