@@ -1,33 +1,60 @@
-# `e.ziclean cube`
+# Summary
 Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/aspirateur-robot-eziclean-cube.html) robot vacuum cleaner.
-## Quick start guide
-
-Build experimental firmwares based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
+# Quick start guide
+## Firmware
+Build experimental firmware images based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
-$ cargo build --bins
+$ cargo build --bins --release
 ```
-
+## Examples: stm32hal
 Build examples based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
-$ cargo build --examples
+$ cargo build --examples --release
 ```
-
+## Examples: stm32ral
 Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
 ```bash
 $ cargo build --features ral --no-default-features --examples
 ```
 
-## Hardware notes
+## Hardware
 ### Board
 ![alt text](pics/board-p1.jpg)
 
 ### Components
 * Microcontroller STM32f101VBT6
 * Accelerometer KXCJ9
-* Operational amplifier (3 pcs) LM324
+* 3 operational amplifiers LM324
 * Quad buffer/line driver 74HC125D
 * Display driver TM1668
 * One-channel touch sensor AT42QT1010
+* 4-serial-cell Li-Ion rechargeable batteries controlled by S-8254A battery protection IC
+
+### Hardware diagram
+TODO
+
+### Hardware investigation status
+- [x] SWD debug port
+- [x] 5 front infrared obstacle sensors
+- [x] 3 bottom infrared floor sensors
+- [x] infrared remote control: protocol and commands
+- [x] dock station infrared beacons: protocol and commands
+- [x] sensor button
+- [x] display
+- [x] beeper
+- [x] accelerometer
+- [x] 2 brush motors
+- [x] pump motor
+- [x] 2 wheel motors, their direction control and encoders
+- [x] charger connector and presence detection
+- [x] dock station connector and presence detection
+- [x] battery presence detection
+- [x] battery voltage control circuit
+- [x] battery current control circuit
+- [x] brush motors current control circuit
+- [x] pump motor current control circuit
+- [ ] wheel motors current control circuit
+- [ ] battery charging circuit
 
 ### Connector pinout
 | VDD (75) | TMS/SWD (72) | GND | TDI (77) | NTRST (90)|
@@ -135,7 +162,7 @@ $ cargo build --features ral --no-default-features --examples
 | PE15 | general purpose output (50MHz) push-pull | | NC ??? |
 
 ### [Wheel motors control](#wheel-motors-control)
-From PCB investigation, it looks like SR-latch circuitry is used for direction control to protect H-bridges for main motors.
+From PCB investigation, it looks like SR-latch circuit is used for direction control to protect H-bridges for main motors.
 
 Right motor direction is controlled by PE14 and PB11:
 
@@ -155,15 +182,15 @@ Left motor direction is controlled by PD2 and PD5:
 |  0   |   1  |  forward |
 |  1   |   1  |  stop |
 
-### [Current control for DC motors](#current-control-for-dc-motors)
+### [Current control circuit for brush/pump motors](#current-control-for-dc-motors)
 From PCB investigation, schematics looks as follows:
 ![alt text](pics/dc-motor-current-control.jpg)
 
-### [Battery voltage control](#battery-voltage-control)
+### [Battery voltage control circuit](#battery-voltage-control)
 From PCB investigation, schematics looks as follows:
 ![alt text](pics/battery-voltage.jpg)
 
-### [Charger control](#charger-control)
+### [Battery charger circuit](#charger-control)
 From PCB investigation, schematics looks as follows:
 ![alt text](pics/battery-charger.jpg)
 
@@ -219,7 +246,29 @@ Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depe
 ![alt_text](pics/ir-rc-dock-codes.png)
 
 
-## Firmware notes
+## Firmware
+### Status of firmware building blocks
+- [x] [5 front infrared obstacle sensors](examples/hal/example-hal-adc-sensors.rs)
+- [x] [3 bottom infrared floor sensors](examples/hal/example-hal-adc-sensors.rs)
+- [x] [infrared remote control](examples/hal/example-hal-ir-rc-test4.rs)
+- [x] [dock station infrared beacons: protocol and commands](examples/hal/example-hal-ir-rc-test4.rs)
+- [x] [sensor button](examples/hal/example-hal-sensor-button.rs)
+- [x] [display](examples/hal/example-hal-i2c-disp-test2.rs)
+- [x] [beeper](examples/ral/example-ral-beep.rs)
+- [x] [KXCJ9 accelerometer](examples/hal/example-hal-i2c-acc-test2.rs)
+- [x] [2 brush motors](examples/hal/example-hal-pwm-brushes.rs)
+- [x] [pump motor](examples/hal/example-hal-pwm-brushes.rs)
+- [x] [2 wheel motors, their speed and encoders](examples/hal/example-hal-pwm-wheels.rs)
+- [x] [2 wheel motors, their encoders](examples/hal/example-hal-wheel-encoders.rs)
+- [x] [charger connector presence detection](examples/hal/example-hal-pwr.rs)
+- [x] [dock station connector presence detection](examples/hal/example-hal-pwr.rs)
+- [x] [battery presence detection](examples/hal/example-hal-pwr.rs)
+- [x] [battery voltage control circuit](examples/hal/example-hal-pwr.rs)
+- [x] [battery current control circuit](examples/hal/example-hal-pwr.rs)
+- [ ] brush motors current control circuit
+- [ ] pump motor current control circuit
+- [ ] wheel motors current control circuit
+- [ ] battery charging circuit
+
+### Firmware diagram
 TODO
-
-
