@@ -31,8 +31,27 @@ $ cargo build --features ral --no-default-features --examples
 * 4-serial-cell Li-Ion rechargeable batteries controlled by S-8254A battery protection IC
 
 ### Hardware diagram
-TODO
+![alt text](pics/hw-diagram.png)
 
+#### Notes
+* Accelerometer and display
+  * GPIO for SCL/SDA/INT and DIO/STB/CLK respectively
+  * note that devices connected to GPIO rather than to h/w I2C and SPI blocks, so GPIO bitbang is used
+* IR front/bottom sensors
+  * GPIO to enable/disable IR LEDs
+  * ADC to read IR diode voltage
+* Brush/pump motors
+  * PWM to control rotation speed
+  * ADC to control [current consumption](#current-control-for-dc-motors)
+* Wheel motors
+  * PWM to control rotation speed
+  * GPIO to control [direction](#wheel-motors-control)
+  * ADC to control current consumption
+* Battery management circuit
+  * PWM to charge battery
+  * GPIO to detect battery presence
+  * ADC to control [battery voltage](#battery-voltage-control) and [charging current](#charger-control)
+  
 ### Hardware investigation status
 - [x] SWD debug port
 - [x] 5 front infrared obstacle sensors
