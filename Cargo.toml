@@ -16,7 +16,7 @@ ral = ["stm32ral"]
 # deps
 
 [dependencies]
-cortex-m-rt = "0.6.10"
+cortex-m-rt = "0.6.11"
 panic-semihosting = "0.5.3"
 cortex-m-semihosting = "0.3.5"
 panic-itm = "0.4.1"
@@ -28,11 +28,7 @@ default-features = false
 version = "1.0.2"
 
 [dependencies.cortex-m-rtfm]
-version = "0.5.0"
-
-[dependencies.shared-bus]
-version = "0.1.4"
-features=["cortexm"]
+version = "0.5.1"
 
 [dependencies.embedded-hal]
 version="0.2.3"
@@ -48,14 +44,10 @@ version = "0.2.0"
 [dependencies.bitbang-hal]
 version = "0.3.0"
 
-[dependencies.infrared]
-version = "0.4.0"
-
 [dependencies.stm32f1xx-hal]
 optional = true
-git = "https://github.com/stm32-rs/stm32f1xx-hal.git"
-rev = "16cb8d74684a3b468013132851e92f118470ce40"
-features = ["stm32f101", "rt"]
+version = "0.5.0"
+features = ["stm32f101", "rt", "medium"]
 
 [dependencies.stm32ral]
 optional = true
@@ -129,11 +121,6 @@ required-features = [ "hal" ]
 [[example]]
 name = "example-hal-ir-rc-test1"
 path = "examples/hal/example-hal-ir-rc-test1.rs"
-required-features = [ "hal" ]
-
-[[example]]
-name = "example-hal-ir-rc-test2"
-path = "examples/hal/example-hal-ir-rc-test2.rs"
 required-features = [ "hal" ]
 
 [[example]]
@@ -227,5 +214,3 @@ required-features = [ "hal" ]
 name = "example-hal-rtfm-robot-v3"
 path = "examples/hal/example-hal-rtfm-robot-v3.rs"
 required-features = [ "hal" ]
-
-

@@ -11,22 +11,7 @@ use panic_itm as _;
 use stm32f1xx_hal::{prelude::*, stm32};
 
 use stm32f1xx_hal::delay::Delay;
-use stm32f1xx_hal::gpio::gpiob::{PB4, PB5};
-use stm32f1xx_hal::gpio::{Alternate, PushPull};
-use stm32f1xx_hal::pwm::{Pins, Pwm, C1, C2};
-use stm32f1xx_hal::stm32::TIM3;
 use stm32f1xx_hal::timer::Timer;
-
-struct Brushes(PB4<Alternate<PushPull>>, PB5<Alternate<PushPull>>);
-
-impl Pins<TIM3> for Brushes {
-    const REMAP: u8 = 0b10;
-    const C1: bool = true;
-    const C2: bool = true;
-    const C3: bool = false;
-    const C4: bool = false;
-    type Channels = (Pwm<TIM3, C1>, Pwm<TIM3, C2>);
-}
 
 #[entry]
 fn main() -> ! {
@@ -52,7 +37,7 @@ fn main() -> ! {
     let p2 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
     let (mut pump, mut brushes) =
-        Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).pwm(Brushes(p1, p2), &mut afio.mapr, 10.khz());
+        Timer::tim3(p.TIM3, &clocks, &mut rcc.apb1).pwm((p1, p2), &mut afio.mapr, 10.khz());
 
     let max = pump.get_max_duty();
 

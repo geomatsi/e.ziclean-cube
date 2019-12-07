@@ -16,11 +16,9 @@ use rtfm::cyccnt::U32Ext;
 
 use hal::adc;
 use hal::gpio;
-use hal::gpio::{Alternate, Floating, Input, OpenDrain, Output, PushPull};
+use hal::gpio::{Floating, Input, OpenDrain, Output, PushPull};
 use hal::prelude::*;
-use hal::pwm::{Pins, Pwm, C1, C2};
 use hal::stm32;
-use hal::stm32::TIM3;
 use hal::timer::Timer;
 use stm32f1xx_hal as hal;
 
@@ -63,20 +61,6 @@ type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
 type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
 
 type BeepGpioType = gpio::gpioe::PE0<Output<PushPull>>;
-
-struct Brushes(
-    gpio::gpiob::PB4<Alternate<PushPull>>,
-    gpio::gpiob::PB5<Alternate<PushPull>>,
-);
-
-impl Pins<TIM3> for Brushes {
-    const REMAP: u8 = 0b10;
-    const C1: bool = true;
-    const C2: bool = true;
-    const C3: bool = false;
-    const C4: bool = false;
-    type Channels = (Pwm<TIM3, C1>, Pwm<TIM3, C2>);
-}
 
 /* */
 
@@ -338,7 +322,7 @@ const APP: () = {
         let pb5 = gpiob.pb5.into_alternate_push_pull(&mut gpiob.crl);
 
         let (pump, brush) = Timer::tim3(cx.device.TIM3, &clocks, &mut rcc.apb1).pwm(
-            Brushes(pb4, pb5),
+            (pb4, pb5),
             &mut afio.mapr,
             10.khz(),
         );

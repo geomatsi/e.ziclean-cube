@@ -10,23 +10,9 @@ use cortex_m as cm;
 
 use panic_itm as _;
 
-use stm32f1xx_hal::gpio::gpiob::PB10;
-use stm32f1xx_hal::gpio::{Alternate, PushPull};
-use stm32f1xx_hal::pwm::{Pins, Pwm, C3};
-use stm32f1xx_hal::stm32::TIM2;
 use stm32f1xx_hal::timer;
+use stm32f1xx_hal::timer::Tim2PartialRemap2;
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
-
-struct Charger(PB10<Alternate<PushPull>>);
-
-impl Pins<TIM2> for Charger {
-    const REMAP: u8 = 0b10;
-    const C1: bool = false;
-    const C2: bool = false;
-    const C3: bool = true;
-    const C4: bool = false;
-    type Channels = Pwm<TIM2, C3>;
-}
 
 #[entry]
 fn main() -> ! {
@@ -62,11 +48,8 @@ fn main() -> ! {
     let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
 
     // TIM2 PWM setup
-    let mut charger = timer::Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).pwm(
-        Charger(pin),
-        &mut afio.mapr,
-        10.khz(),
-    );
+    let mut charger = timer::Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1)
+        .pwm::<Tim2PartialRemap2, _, _, _>(pin, &mut afio.mapr, 10.khz());
 
     let pwm_max_duty = charger.get_max_duty();
 
