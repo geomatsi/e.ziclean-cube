@@ -16,12 +16,12 @@ ral = ["stm32ral"]
 # deps
 
 [dependencies]
-cortex-m-rt = "0.6.11"
+cortex-m-rt = "0.6.12"
 panic-semihosting = "0.5.3"
 cortex-m-semihosting = "0.3.5"
 panic-itm = "0.4.1"
 nb = "0.1.2"
-heapless = "0.5.1"
+heapless = "0.5.3"
 
 [dependencies.void]
 default-features = false
@@ -35,7 +35,7 @@ version="0.2.3"
 features=["unproven"]
 
 [dependencies.cortex-m]
-version="0.6.1"
+version="0.6.2"
 features=["const-fn"]
 
 [dependencies.kxcj9]
@@ -46,7 +46,7 @@ version = "0.3.0"
 
 [dependencies.stm32f1xx-hal]
 optional = true
-version = "0.5.0"
+version = "0.5.3"
 features = ["stm32f101", "rt", "medium"]
 
 [dependencies.stm32ral]
