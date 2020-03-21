@@ -291,3 +291,11 @@ Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depe
 
 ### Firmware diagram
 TODO
+
+## Notes
+### Restore original firmware
+OpenOCD command to restore original factory firmware:
+```bash
+> flash write_image erase dumps/eziclean.orig.flash.dump 0x08000000
+```
+
