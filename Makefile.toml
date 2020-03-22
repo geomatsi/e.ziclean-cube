@@ -1,0 +1,13 @@
+[tasks.debug]
+script = [
+'''
+sudo tools/tmux-debug
+'''
+]
+
+[tasks.factory]
+script = [
+'''
+sudo openocd -f tools/openocd.cfg -c 'factory ()'
+'''
+]

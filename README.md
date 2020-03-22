@@ -16,6 +16,16 @@ Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
 ```bash
 $ cargo build --features ral --no-default-features --examples
 ```
+## cargo-make tools
+Start tmux debug environment with itmdump and jlink:
+```bash
+$ cargo make debug
+```
+
+Restore original factory firmware:
+```bash
+$ cargo make factory
+```
 
 ## Hardware
 ### Board
@@ -291,11 +301,3 @@ Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depe
 
 ### Firmware diagram
 TODO
-
-## Notes
-### Restore original firmware
-OpenOCD command to restore original factory firmware:
-```bash
-> flash write_image erase dumps/eziclean.orig.flash.dump 0x08000000
-```
-
