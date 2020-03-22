@@ -1,0 +1,22 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        toolchain: stable
+        target: thumbv7m-none-eabi
+    - name: Build stm32ral examples
+      run: cargo build --examples --features ral --no-default-features  --release
+    - name: Build stm32f1xx-hal examples
+      run: cargo build --features hal --examples --release
+    - name: Build firmware
+      run: cargo build --bins --release
