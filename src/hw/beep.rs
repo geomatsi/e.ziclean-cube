@@ -2,25 +2,26 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::timer::CountDown;
 use embedded_hal::timer::Periodic;
 use nb::block;
+use stm32f1xx_hal as hal;
+
+type BeepGpio = hal::gpio::gpioe::PE0<hal::gpio::Output<hal::gpio::PushPull>>;
 
 /// Beeper
-pub struct Beeper<TMR, PIN>
+pub struct Beeper<TMR>
 where
     TMR: Periodic + CountDown,
-    PIN: OutputPin,
 {
     /// timer
     tmr: TMR,
     /// pin
-    pin: PIN,
+    pin: BeepGpio,
 }
 
-impl<TMR, PIN> Beeper<TMR, PIN>
+impl<TMR> Beeper<TMR>
 where
     TMR: Periodic + CountDown,
-    PIN: OutputPin,
 {
-    pub fn create(tmr: TMR, pin: PIN) -> Self {
+    pub fn create(tmr: TMR, pin: BeepGpio) -> Self {
         Beeper { tmr, pin }
     }
 
@@ -37,6 +38,7 @@ where
     pub fn beep_on(&mut self) {
         self.pin.set_high().ok();
     }
+
     pub fn beep_off(&mut self) {
         self.pin.set_low().ok();
     }

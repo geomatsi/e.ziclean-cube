@@ -72,8 +72,6 @@ type I2cSclType = gpio::gpioe::PE7<Output<OpenDrain>>;
 type I2cSdaType = gpio::gpiob::PB2<Output<OpenDrain>>;
 type I2cAccel = bb::i2c::I2cBB<I2cSclType, I2cSdaType, PollTimer>;
 
-type BeepGpioType = gpio::gpioe::PE0<Output<PushPull>>;
-
 type AdcDmaType = adc::AdcDma<AdcPins, Scan>;
 type DmaBufType = &'static mut [u16; 10];
 type FrontSensorsBufType = &'static mut [u16; 5];
@@ -176,7 +174,7 @@ const APP: () = {
         accel: Kxcj9<I2cAccel, G8Device>,
 
         // Beeper
-        beeper: Beeper<PollTimer, BeepGpioType>,
+        beeper: Beeper<PollTimer>,
 
         // IR RC
         ir_pin: InfraredTopGpioType,
