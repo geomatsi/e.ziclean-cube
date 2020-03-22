@@ -38,8 +38,8 @@ use eziclean::hw::motion::Motion;
 use eziclean::hw::poll_timer::PollTimer;
 use eziclean::hw::utils::*;
 
+use eziclean::sw::brain::debug::DebugBrain;
 use eziclean::sw::brain::Brain;
-use eziclean::sw::brain::DebugBrain;
 use eziclean::sw::comm::Actions;
 use eziclean::sw::comm::Events;
 use eziclean::sw::comm::View;
