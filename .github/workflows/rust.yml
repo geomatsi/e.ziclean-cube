@@ -11,10 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         target: thumbv7m-none-eabi
-        default: true
+        override: true
     - name: Build stm32ral examples
       run: cargo build --examples --features ral --no-default-features  --release
     - name: Build stm32f1xx-hal examples
