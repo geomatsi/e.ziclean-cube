@@ -1,3 +1,5 @@
+![Rust](https://github.com/geomatsi/e.ziclean-cube/workflows/Rust/badge.svg?branch=master)
+
 # Summary
 Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/aspirateur-robot-eziclean-cube.html) robot vacuum cleaner.
 # Quick start guide
