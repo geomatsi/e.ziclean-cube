@@ -14,6 +14,7 @@ jobs:
       with:
         toolchain: stable
         target: thumbv7m-none-eabi
+        default: true
     - name: Build stm32ral examples
       run: cargo build --examples --features ral --no-default-features  --release
     - name: Build stm32f1xx-hal examples
