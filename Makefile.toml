@@ -1,13 +1,20 @@
-[tasks.debug]
+[tasks.debug-jlink]
 script = [
 '''
-sudo tools/tmux-debug
+sudo tools/tmux-debug-jlink
 '''
 ]
 
-[tasks.factory]
+[tasks.debug-stlink]
 script = [
 '''
-sudo openocd -f tools/openocd.cfg -c 'factory ()'
+sudo tools/tmux-debug-stlink
+'''
+]
+
+[tasks.factory-stlink]
+script = [
+'''
+sudo openocd -f tools/openocd-stlink.cfg -c 'factory ()'
 '''
 ]
