@@ -1,16 +1,11 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cortex_m_rt::entry;
-
 use cortex_m as cm;
-
-use panic_semihosting as _;
-
-use cortex_m_semihosting::hprintln;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::{prelude::*, stm32, timer};
 
 #[entry]
@@ -27,6 +22,8 @@ fn main() -> ! {
     let mut gpiob = p.GPIOB.split(&mut rcc.apb2);
     let mut gpiod = p.GPIOD.split(&mut rcc.apb2);
     let mut gpioe = p.GPIOE.split(&mut rcc.apb2);
+
+    rtt_init_print!();
 
     // GPIO
 
@@ -85,7 +82,7 @@ fn main() -> ! {
 
     let max = pwm.0.get_max_duty();
 
-    hprintln!("pwm max duty: {}...", max).unwrap();
+    rprintln!("pwm max duty: {}...", max);
 
     pwm.0.enable();
     pwm.1.enable();
@@ -96,7 +93,7 @@ fn main() -> ! {
 
     let duty: [u32; 5] = [16, 8, 4, 2, 1];
 
-    hprintln!("lets rock...").unwrap();
+    rprintln!("lets rock...");
 
     left_rev.set_high().unwrap();
     right_fwd.set_high().unwrap();
@@ -104,12 +101,12 @@ fn main() -> ! {
     loop {
         for s in 0..duty.len() {
             let d = max / duty[s] as u16;
-            hprintln!("duty: {}", d).unwrap();
+            rprintln!("duty: {}", d);
             pwm.0.set_duty(d);
             pwm.1.set_duty(d);
             pwm.2.set_duty(d);
             pwm.3.set_duty(d);
-            delay(20000);
+            delay(2000000);
         }
 
         left_rev.toggle().unwrap();
