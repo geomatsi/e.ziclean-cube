@@ -23,6 +23,14 @@ panic-itm = "0.4.1"
 nb = "0.1.2"
 heapless = "0.5.3"
 
+[dependencies.rtt-target]
+version = "0.3.0"
+features = ["cortex-m"]
+
+[dependencies.panic-rtt-target]
+version = "0.1.1"
+features = ["cortex-m"]
+
 [dependencies.void]
 default-features = false
 version = "1.0.2"

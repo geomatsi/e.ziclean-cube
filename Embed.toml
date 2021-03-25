@@ -1,0 +1,45 @@
+# default config
+# - do not write firmware to flash
+# - run current firmware
+# - attach rtt debug
+
+[default.probe]
+protocol = "Swd"
+
+[default.flashing]
+enabled = false
+halt_afterwards = false
+restore_unwritten_bytes = false
+
+[default.reset]
+enabled = true
+halt_afterwards = false
+
+[default.general]
+chip = "STM32F101VB"
+log_level = "WARN"
+connect_under_reset = false
+
+[default.rtt]
+enabled = true
+channels = []
+timeout = 3000
+show_timestamps = true
+log_enabled = false
+
+[default.gdb]
+enabled = false
+gdb_connection_string = "127.0.0.1:1337"
+
+# flash config
+# - write firmware to flash
+# - run written firmware
+# - do not attach rtt debug
+
+[flash.rtt]
+enabled = false
+
+[flash.flashing]
+enabled = true
+halt_afterwards = false
+restore_unwritten_bytes = false

@@ -5,7 +5,7 @@ tmux split-window -h -t jetlink:0
 tmux split-window -v -t jetlink:0.1
 
 # start openocd server
-tmux send-keys -t jetlink:0.2 "sudo openocd -f tools/openocd.cfg -c 'attach ()'" C-m
+tmux send-keys -t jetlink:0.2 "sudo openocd -f tools/openocd-jlink.cfg -c 'attach ()'" C-m
 sleep 0.5
 
 # connect telnet session to openocd server
