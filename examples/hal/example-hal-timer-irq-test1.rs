@@ -1,27 +1,23 @@
 #![no_main]
 #![no_std]
 
-use cortex_m_rt::entry;
-use cortex_m_rt::exception;
-
 use cm::interrupt::Mutex;
-use cm::iprintln;
 use cm::peripheral::syst::SystClkSource;
-use cortex_m as cm;
-
-use panic_itm as _;
-
 use core::cell::RefCell;
 use core::ops::DerefMut;
+use cortex_m as cm;
+use cortex_m_rt::entry;
+use cortex_m_rt::exception;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::CountDownTimer;
 use hal::timer::Event;
 use hal::timer::Timer;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
-static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
 static G_TIM2: Mutex<RefCell<Option<CountDownTimer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
 static G_TIM3: Mutex<RefCell<Option<CountDownTimer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
 static G_TIM4: Mutex<RefCell<Option<CountDownTimer<stm32::TIM4>>>> = Mutex::new(RefCell::new(None));
@@ -30,6 +26,9 @@ static G_TIM4: Mutex<RefCell<Option<CountDownTimer<stm32::TIM4>>>> = Mutex::new(
 fn main() -> ! {
     if let (Some(mut cp), Some(dp)) = (cm::Peripherals::take(), stm32::Peripherals::take()) {
         cm::interrupt::free(|cs| {
+            // configure RTT logging
+            rtt_init_print!();
+
             // configure NVIC interrupts
             setup_interrupts(&mut cp);
 
@@ -58,7 +57,6 @@ fn main() -> ! {
             tim3.listen(Event::Update);
             tim4.listen(Event::Update);
 
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
             G_TIM2.borrow(cs).replace(Some(tim2));
             G_TIM3.borrow(cs).replace(Some(tim3));
             G_TIM4.borrow(cs).replace(Some(tim4));
@@ -66,7 +64,7 @@ fn main() -> ! {
     }
 
     loop {
-        cm::asm::wfi();
+        cm::asm::nop();
     }
 }
 
@@ -92,14 +90,9 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 #[interrupt]
 fn TIM2() {
     cm::interrupt::free(|cs| {
-        if let (Some(ref mut itm), Some(ref mut tim)) = (
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
-            G_TIM2.borrow(cs).borrow_mut().deref_mut(),
-        ) {
-            let d = &mut itm.stim[0];
-
-            iprintln!(d, "TIM2");
-            tim.start(1.hz());
+        if let Some(ref mut tim) = G_TIM2.borrow(cs).borrow_mut().deref_mut() {
+            rprintln!("TIM2");
+            tim.clear_update_interrupt_flag();
         }
     });
 }
@@ -107,14 +100,9 @@ fn TIM2() {
 #[interrupt]
 fn TIM3() {
     cm::interrupt::free(|cs| {
-        if let (Some(ref mut itm), Some(ref mut tim)) = (
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
-            G_TIM3.borrow(cs).borrow_mut().deref_mut(),
-        ) {
-            let d = &mut itm.stim[0];
-
-            iprintln!(d, "TIM3");
-            tim.start(1.hz());
+        if let Some(ref mut tim) = G_TIM3.borrow(cs).borrow_mut().deref_mut() {
+            rprintln!("TIM3");
+            tim.clear_update_interrupt_flag();
         }
     });
 }
@@ -122,25 +110,16 @@ fn TIM3() {
 #[interrupt]
 fn TIM4() {
     cm::interrupt::free(|cs| {
-        if let (Some(ref mut itm), Some(ref mut tim)) = (
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
-            G_TIM4.borrow(cs).borrow_mut().deref_mut(),
-        ) {
-            let d = &mut itm.stim[0];
-
-            iprintln!(d, "TIM4");
-            tim.start(1.hz());
+        if let Some(ref mut tim) = G_TIM4.borrow(cs).borrow_mut().deref_mut() {
+            rprintln!("TIM4");
+            tim.clear_update_interrupt_flag();
         }
     });
 }
 
 #[exception]
 fn SysTick() {
-    cm::interrupt::free(|cs| {
-        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-            let d = &mut itm.stim[0];
-
-            iprintln!(d, "SYSTICK");
-        }
+    cm::interrupt::free(|_cs| {
+        rprintln!("SYSTICK");
     });
 }

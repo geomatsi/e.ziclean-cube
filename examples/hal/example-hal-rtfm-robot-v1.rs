@@ -7,19 +7,15 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cm::iprintln;
 use cortex_m as cm;
-
-use panic_itm as _;
-
-use rtfm::app;
-
+use embedded_hal::digital::v2::OutputPin;
 use hal::adc;
 use hal::prelude::*;
 use hal::stm32;
 use hal::timer;
+use panic_rtt_target as _;
+use rtfm::app;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
 use eziclean::hw::adc::{Analog, BottomSensorsData, FrontSensorsData};
@@ -34,15 +30,15 @@ const APP: () = {
     // basic hardware resources
     struct Resources {
         tmr2: timer::CountDownTimer<stm32::TIM2>,
-        itm: hal::stm32::ITM,
         analog: Analog,
         drive: Motion,
     }
 
     #[init]
-    fn init(mut cx: init::Context) -> init::LateResources {
+    fn init(cx: init::Context) -> init::LateResources {
         let mut rcc = cx.device.RCC.constrain();
-        let dbg = &mut cx.core.ITM.stim[0];
+
+        rtt_init_print!();
 
         // configure clocks
         let mut flash = cx.device.FLASH.constrain();
@@ -53,9 +49,9 @@ const APP: () = {
             .adcclk(4.mhz())
             .freeze(&mut flash.acr);
 
-        iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
-        iprintln!(dbg, "PCLK2: {} Hz ...", clocks.pclk2().0);
-        iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
+        rprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0);
+        rprintln!("PCLK2: {} Hz ...", clocks.pclk2().0);
+        rprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0);
 
         let mut gpioa = cx.device.GPIOA.split(&mut rcc.apb2);
         let mut gpiob = cx.device.GPIOB.split(&mut rcc.apb2);
@@ -132,7 +128,6 @@ const APP: () = {
 
         init::LateResources {
             tmr2: t2,
-            itm: cx.core.ITM,
             analog: a,
             drive: m,
         }
@@ -141,7 +136,7 @@ const APP: () = {
     #[idle()]
     fn idle(_: idle::Context) -> ! {
         loop {
-            cm::asm::wfi();
+            cm::asm::nop();
         }
     }
 
@@ -149,21 +144,19 @@ const APP: () = {
         binds = TIM2,
         resources = [
                 // hardware units
-                tmr2, itm,
+                tmr2,
                 // analog readings
                 analog,
                 // motion control
                 drive
     ])]
     fn tim2(cx: tim2::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
         let max_range: u16 = cx.resources.analog.get_max_sample();
 
         let front = cx.resources.analog.get_front_sensors(true).unwrap();
         let bottom = cx.resources.analog.get_bottom_sensors(true).unwrap();
 
-        iprintln!(
-            dbg,
+        rprintln!(
             "raw front sensors: ({},{},{},{},{})",
             front.fll,
             front.flc,
@@ -173,7 +166,7 @@ const APP: () = {
         );
 
         let (dl, dc, dr) = make_decision(cx.resources.drive, front, bottom, max_range).unwrap();
-        iprintln!(dbg, "decision input: {} {} {}", dl, dc, dr);
+        rprintln!("decision input: {} {} {}", dl, dc, dr);
 
         cx.resources.tmr2.start(5.hz());
     }

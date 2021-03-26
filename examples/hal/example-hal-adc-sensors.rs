@@ -1,30 +1,26 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cortex_m_rt::entry;
-
-use cm::iprintln;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
-    let mut core = cm::Peripherals::take().unwrap();
-    let d = &mut core.ITM.stim[0];
-
     let p = stm32::Peripherals::take().unwrap();
+
+    rtt_init_print!();
+
     let mut flash = p.FLASH.constrain();
     let mut rcc = p.RCC.constrain();
     let clocks = rcc.cfgr.adcclk(2.mhz()).freeze(&mut flash.acr);
 
-    iprintln!(d, "SYSCLK: {} Hz ...", clocks.sysclk().0);
-    iprintln!(d, "PCLK2: {} Hz ...", clocks.pclk2().0);
-    iprintln!(d, "ADCCLK: {} Hz ...", clocks.adcclk().0);
+    rprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0);
+    rprintln!("PCLK2: {} Hz ...", clocks.pclk2().0);
+    rprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0);
 
     let mut gpioa = p.GPIOA.split(&mut rcc.apb2);
     let mut gpiob = p.GPIOB.split(&mut rcc.apb2);
@@ -73,7 +69,7 @@ fn main() -> ! {
     let mut bottom_center = ch7;
     let mut bottom_right = ch9;
 
-    iprintln!(d, "Start ADC readings...");
+    rprintln!("Start ADC readings...");
 
     loop {
         //let data: u16 = adc.read(&mut ch8).unwrap();
@@ -90,8 +86,7 @@ fn main() -> ! {
         let sc: u16 = adc.read(&mut bottom_center).unwrap();
         let sr: u16 = adc.read(&mut bottom_right).unwrap();
 
-        iprintln!(
-            d,
+        rprintln!(
             "front: ({},{},{},{},{})     bottom: ({},{},{})",
             max_range - sll,
             max_range - slc,
@@ -117,8 +112,7 @@ fn main() -> ! {
         let sr: u16 = adc.read(&mut bottom_right).unwrap();
         bottom_leds.set_low().unwrap();
 
-        iprintln!(
-            d,
+        rprintln!(
             "front: ({},{},{},{},{})     bottom: ({},{},{})\n",
             max_range - sll,
             max_range - slc,
@@ -130,7 +124,7 @@ fn main() -> ! {
             max_range - sr
         );
 
-        delay(2000);
+        delay(1000000);
     }
 }
 

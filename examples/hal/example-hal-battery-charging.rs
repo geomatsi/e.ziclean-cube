@@ -1,25 +1,21 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::InputPin;
-
-use cortex_m_rt::entry;
-
-use cm::iprintln;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::InputPin;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::timer;
 use stm32f1xx_hal::timer::Tim2PartialRemap2;
 use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
-    let mut core = cm::Peripherals::take().unwrap();
-    let d = &mut core.ITM.stim[0];
-
     let p = stm32::Peripherals::take().unwrap();
+
+    rtt_init_print!();
+
     let mut flash = p.FLASH.constrain();
     let mut rcc = p.RCC.constrain();
     let clocks = rcc.cfgr.adcclk(2.mhz()).freeze(&mut flash.acr);
@@ -58,20 +54,21 @@ fn main() -> ! {
     // make sure that battery is connected
 
     while !batt.is_high().unwrap() {
-        iprintln!(d, "Battery not connected...");
-        delay(10000);
+        rprintln!("Battery not connected...");
+        delay(100000);
     }
 
-    iprintln!(d, "Battery connected !");
+    rprintln!("Battery connected !");
 
     // make sure charger is connected
 
     loop {
         while !plug.is_high().unwrap() && !base.is_high().unwrap() {
-            iprintln!(d, "Charger not connected...");
+            rprintln!("Charger not connected...");
+            delay(100000);
         }
 
-        iprintln!(d, "Charger connected !");
+        rprintln!("Charger connected !");
 
         charger.set_duty(pwm_max_duty / 2 as u16);
         charger.enable();
@@ -91,11 +88,11 @@ fn main() -> ! {
             // v_ch2 = v_shunt * (200k / 10k)
             let v_shunt: u32 = v_ch2 * 1200 * 10 / v_ref / 200;
 
-            iprintln!(d, "V_bat: {} mV; V_shunt {} mV", v_bat, v_shunt);
-            delay(1000);
+            rprintln!("V_bat: {} mV; V_shunt {} mV", v_bat, v_shunt);
+            delay(100000);
 
             if !plug.is_high().unwrap() && !base.is_high().unwrap() {
-                iprintln!(d, "Charger disconnected: stop charging!");
+                rprintln!("Charger disconnected: stop charging!");
                 charger.disable();
                 break;
             }

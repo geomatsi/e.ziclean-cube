@@ -1,34 +1,29 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cortex_m_rt::entry;
-
 use cm::interrupt::Mutex;
-use cm::iprintln;
+use core::cell::RefCell;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
-use core::cell::RefCell;
-use core::ops::DerefMut;
-
 type ExtIntr = stm32::EXTI;
-type DbgPort = stm32::ITM;
 
 static G_EXTI: Mutex<RefCell<Option<ExtIntr>>> = Mutex::new(RefCell::new(None));
-static G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
     if let (Some(mut cp), Some(dp)) = (cm::Peripherals::take(), stm32::Peripherals::take()) {
         cm::interrupt::free(|cs| {
+            // configure RTT logger
+            rtt_init_print!();
+
             // configure NVIC interrupts
             setup_interrupts(&mut cp);
 
@@ -68,19 +63,15 @@ fn main() -> ! {
             dp.EXTI.rtsr.modify(|_, w| w.tr12().set_bit());
 
             G_EXTI.borrow(cs).replace(Some(dp.EXTI));
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
         });
     }
 
     loop {
-        cm::interrupt::free(|cs| {
-            if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-                let d = &mut itm.stim[0];
-                iprintln!(d, "idle loop");
-            }
+        cm::interrupt::free(|_cs| {
+            rprintln!("idle loop");
         });
 
-        delay(10000);
+        delay(1000000);
     }
 }
 
@@ -109,10 +100,7 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 #[interrupt]
 fn EXTI9_5() {
     cm::interrupt::free(|cs| {
-        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-            let d = &mut itm.stim[0];
-            iprintln!(d, "EXTI9_5");
-        }
+        rprintln!("EXTI9_5");
 
         if let Some(exti) = G_EXTI.borrow(cs).borrow().as_ref() {
             exti.pr.modify(|_, w| w.pr8().set_bit());
@@ -123,10 +111,7 @@ fn EXTI9_5() {
 #[interrupt]
 fn EXTI15_10() {
     cm::interrupt::free(|cs| {
-        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-            let d = &mut itm.stim[0];
-            iprintln!(d, "EXTI15_10");
-        }
+        rprintln!("EXTI15_10");
 
         if let Some(exti) = G_EXTI.borrow(cs).borrow().as_ref() {
             exti.pr.modify(|_, w| w.pr12().set_bit());

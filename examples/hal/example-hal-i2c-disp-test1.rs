@@ -1,30 +1,23 @@
 #![no_std]
 #![no_main]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cortex_m_rt::entry;
-
-use cm::iprintln;
-use cortex_m as cm;
-
-use panic_itm as _;
-
 use bitbang_hal;
 use bitbang_hal::spi::BitOrder;
 use bitbang_hal::spi::MODE_3;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
+use nb::block;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
 
-use nb::block;
-
 #[entry]
 fn main() -> ! {
-    let mut core = cm::Peripherals::take().unwrap();
-    let dbg = &mut core.ITM.stim[0];
-
     let p = stm32::Peripherals::take().unwrap();
+
+    rtt_init_print!();
+
     let mut rcc = p.RCC.constrain();
     let mut flash = p.FLASH.constrain();
 
@@ -50,7 +43,7 @@ fn main() -> ! {
     let mut spi = bitbang_hal::spi::SPI::new(MODE_3, tmp, dio, clk, timer);
     spi.set_bit_order(BitOrder::LSBFirst);
 
-    iprintln!(dbg, "start... wait 1 sec...");
+    rprintln!("start... wait 1 sec...");
     stb.set_high().unwrap();
     block!(delay.wait()).ok();
 
@@ -142,7 +135,7 @@ fn main() -> ! {
             stb.set_high().unwrap();
         }
 
-        iprintln!(dbg, "clean");
+        rprintln!("clean");
         block!(delay.wait()).ok();
 
         for n in 0..10 {
@@ -157,11 +150,11 @@ fn main() -> ! {
                 stb.set_high().unwrap();
             }
 
-            iprintln!(dbg, "sym: {}", n);
+            rprintln!("sym: {}", n);
             block!(delay.wait()).ok();
         }
 
-        iprintln!(dbg, "done");
+        rprintln!("done");
         block!(delay.wait()).ok();
     }
 }

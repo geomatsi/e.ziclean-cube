@@ -1,34 +1,29 @@
 #![no_main]
 #![no_std]
 
-use cortex_m_rt::entry;
-
 use cm::interrupt::Mutex;
-use cm::iprintln;
+use core::cell::RefCell;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
-use core::cell::RefCell;
-use core::ops::DerefMut;
-
 type ExtIntr = stm32::EXTI;
-type DbgPort = stm32::ITM;
 
 static G_EXTI: Mutex<RefCell<Option<ExtIntr>>> = Mutex::new(RefCell::new(None));
-static G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
     if let (Some(mut cp), Some(dp)) = (cm::Peripherals::take(), stm32::Peripherals::take()) {
         cm::interrupt::free(|cs| {
-            let mut rcc = dp.RCC.constrain();
             let mut flash = dp.FLASH.constrain();
+            let mut rcc = dp.RCC.constrain();
+
+            rtt_init_print!();
 
             let _clocks = rcc
                 .cfgr
@@ -58,19 +53,12 @@ fn main() -> ! {
             dp.EXTI.ftsr.modify(|_, w| w.tr1().set_bit());
 
             G_EXTI.borrow(cs).replace(Some(dp.EXTI));
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
         });
     }
 
     loop {
-        cm::interrupt::free(|cs| {
-            if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-                let d = &mut itm.stim[0];
-                iprintln!(d, "idle loop");
-            }
-        });
-
-        delay(10000);
+        rprintln!("idle loop");
+        delay(1000000);
     }
 }
 
@@ -95,10 +83,7 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 #[interrupt]
 fn EXTI1() {
     cm::interrupt::free(|cs| {
-        if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-            let d = &mut itm.stim[0];
-            iprintln!(d, "Touch !");
-        }
+        rprintln!("Touch !");
 
         if let Some(exti) = G_EXTI.borrow(cs).borrow().as_ref() {
             exti.pr.modify(|_, w| w.pr1().set_bit());

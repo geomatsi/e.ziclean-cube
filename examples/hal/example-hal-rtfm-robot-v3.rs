@@ -2,14 +2,14 @@
 #![no_main]
 #![no_std]
 
-use cm::iprintln;
 use cm::singleton;
 use cortex_m as cm;
 
 use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
-use panic_itm as _;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 
 use rtfm::app;
 use rtfm::cyccnt::Instant;
@@ -137,7 +137,6 @@ const APP: () = {
 
         // basic hardware resources
         exti: stm32::EXTI,
-        itm: stm32::ITM,
 
         // buttons and chargers
         dock: DockGpioType,
@@ -181,7 +180,9 @@ const APP: () = {
     #[init(schedule = [proc_task, start_adc_dma_task, power_task, init_task, ir_decode_task, ir_enable_task])]
     fn init(mut cx: init::Context) -> init::LateResources {
         let mut rcc = cx.device.RCC.constrain();
-        let dbg = &mut cx.core.ITM.stim[0];
+
+        // setup RTT logger
+        rtt_init_print!();
 
         // setup event queues
         let queue = BinaryHeap(heapless::i::BinaryHeap::new());
@@ -195,8 +196,8 @@ const APP: () = {
             .adcclk(2.mhz())
             .freeze(&mut flash.acr);
 
-        iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
-        iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
+        rprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0);
+        rprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0);
 
         let mut gpioa = cx.device.GPIOA.split(&mut rcc.apb2);
         let mut gpiob = cx.device.GPIOB.split(&mut rcc.apb2);
@@ -524,7 +525,6 @@ const APP: () = {
 
         init::LateResources {
             queue: queue,
-            itm: cx.core.ITM,
             exti: cx.device.EXTI,
             transfer: None,
             adc_dma: Some(adc_dma),
@@ -561,7 +561,7 @@ const APP: () = {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            cm::asm::wfi();
+            cm::asm::nop();
         }
     }
 
@@ -578,14 +578,13 @@ const APP: () = {
      * Brain: main processing task
      *
      */
-    #[task(schedule = [proc_task], resources = [itm, queue])]
+    #[task(schedule = [proc_task], resources = [queue])]
     fn proc_task(mut cx: proc_task::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
         let eq = &mut cx.resources.queue;
 
         while !eq.is_empty() {
             if let Some(e) = eq.pop() {
-                iprintln!(dbg, ">>> prio event {:?}", e);
+                rprintln!(">>> prio event {:?}", e);
             }
         }
 
@@ -599,9 +598,8 @@ const APP: () = {
      *
      */
 
-    #[task(resources = [itm, screen, accel])]
+    #[task(resources = [screen, accel])]
     fn init_task(cx: init_task::Context) {
-        let _dbg = &mut cx.resources.itm.stim[0];
         let scr = cx.resources.screen;
         let acc = cx.resources.accel;
 
@@ -641,9 +639,8 @@ const APP: () = {
      * Decoding Infrared Remote Control messages
      *
      */
-    #[task(schedule = [ir_decode_task, ir_enable_task], resources = [itm, ir_pin, ir_count, ir_decoder, exti, queue])]
+    #[task(schedule = [ir_decode_task, ir_enable_task], resources = [ir_pin, ir_count, ir_decoder, exti, queue])]
     fn ir_decode_task(mut cx: ir_decode_task::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
         let val = cx.resources.ir_pin.is_high().unwrap();
         let eq = &mut cx.resources.queue;
 
@@ -658,7 +655,7 @@ const APP: () = {
                     .unwrap();
             }
             ReceiverResult::Fail(e) => {
-                iprintln!(dbg, "ir: err: {}", e);
+                rprintln!("ir: err: {}", e);
                 cx.resources.ir_decoder.reset();
                 *cx.resources.ir_count = 0;
                 cx.schedule
@@ -686,9 +683,8 @@ const APP: () = {
      *   - DMA_CHANNEL1 interrupt reads results
      *   - DMA_CHANNEL1 interrupt schedules start_adc_dma_task
      */
-    #[task(binds = DMA1_CHANNEL1, schedule = [start_adc_dma_task], resources = [itm, transfer, adc_dma, buffer, mode, front_leds, bottom_leds, front_buf, bottom_buf, queue])]
+    #[task(binds = DMA1_CHANNEL1, schedule = [start_adc_dma_task], resources = [transfer, adc_dma, buffer, mode, front_leds, bottom_leds, front_buf, bottom_buf, queue])]
     fn dma1_channel1(mut cx: dma1_channel1::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
         let eq = &mut cx.resources.queue;
 
         if let Some(xfer) = cx.resources.transfer.take() {
@@ -777,14 +773,12 @@ const APP: () = {
                 .start_adc_dma_task(Instant::now() + SENSE_PERIOD.cycles())
                 .unwrap();
         } else {
-            iprintln!(dbg, "DMA1_CH1 IRQ: ERR: no xfer");
+            rprintln!("DMA1_CH1 IRQ: ERR: no xfer");
         }
     }
 
-    #[task(resources = [itm, transfer, adc_dma, buffer, front_leds, bottom_leds, mode])]
+    #[task(resources = [transfer, adc_dma, buffer, front_leds, bottom_leds, mode])]
     fn start_adc_dma_task(cx: start_adc_dma_task::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
-
         if let (Some(scan), Some(buf)) = (cx.resources.adc_dma.take(), cx.resources.buffer.take()) {
             cx.resources.mode.leds = match cx.resources.mode.leds {
                 true => {
@@ -803,7 +797,7 @@ const APP: () = {
             let xfer = scan.read(buf);
             *cx.resources.transfer = Some(xfer);
         } else {
-            iprintln!(dbg, "IDLE: ERR: no rdma");
+            rprintln!("IDLE: ERR: no rdma");
         }
     }
 
@@ -811,9 +805,8 @@ const APP: () = {
      * Power: task checking battery, dock station and charger plug
      *
      */
-    #[task(schedule = [power_task], resources = [itm, dock, charger, battery, queue])]
+    #[task(schedule = [power_task], resources = [dock, charger, battery, queue])]
     fn power_task(mut cx: power_task::Context) {
-        let _dbg = &mut cx.resources.itm.stim[0];
         let c = cx.resources.charger.is_high().unwrap_or(false);
         let b = cx.resources.battery.is_high().unwrap_or(false);
         let d = cx.resources.dock.is_high().unwrap_or(false);

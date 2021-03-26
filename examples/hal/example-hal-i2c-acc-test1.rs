@@ -2,14 +2,10 @@
 #![no_main]
 
 use cortex_m_rt::entry;
-
 extern crate cortex_m as cm;
-use cm::iprintln;
-
-use panic_itm as _;
-
 use bitbang_hal;
-
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
 
@@ -18,10 +14,10 @@ use kxcj9::{GScale8, Kxcj9, Resolution, SlaveAddr};
 
 #[entry]
 fn main() -> ! {
-    let mut core = cm::Peripherals::take().unwrap();
-    let dbg = &mut core.ITM.stim[0];
-
     let p = stm32::Peripherals::take().unwrap();
+
+    rtt_init_print!();
+
     let mut rcc = p.RCC.constrain();
     let mut flash = p.FLASH.constrain();
 
@@ -39,7 +35,7 @@ fn main() -> ! {
     gpioe.pe9.into_floating_input(&mut gpioe.crh);
 
     // TIM2 is used for charging, TIM3 for brushes, TIM4 for wheels
-    let tmr = Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).start_count_down(100.hz());
+    let tmr = Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1).start_count_down(100.khz());
 
     let i2c = bitbang_hal::i2c::I2cBB::new(scl, sda, tmr);
 
@@ -53,7 +49,7 @@ fn main() -> ! {
         _ => "unkonwn",
     };
 
-    iprintln!(dbg, "KXCJ9 model: {}", model);
+    rprintln!("KXCJ9 model: {}", model);
 
     acc.enable().unwrap();
     acc.set_scale(GScale8::G2).unwrap();
@@ -71,8 +67,7 @@ fn main() -> ! {
             za += data.z;
         }
 
-        iprintln!(
-            dbg,
+        rprintln!(
             " X {:>8.3}   Y {:>8.3}   Z{:>8.3}",
             xa / 10.0,
             ya / 10.0,

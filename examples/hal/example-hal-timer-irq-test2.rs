@@ -1,27 +1,22 @@
 #![no_main]
 #![no_std]
 
-use cortex_m_rt::entry;
-
 use cm::interrupt::Mutex;
-use cm::iprintln;
 use cm::singleton;
+use core::cell::RefCell;
+use core::ops::DerefMut;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::CountDownTimer;
 use hal::timer::Event;
 use hal::timer::Timer;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
-use core::cell::RefCell;
-use core::ops::DerefMut;
-
-type DbgPort = stm32::ITM;
 type ReadBuf = &'static mut [u32; 10];
 
 const FREQ: u32 = 40_000;
@@ -29,7 +24,6 @@ const TEST_FREQ: u32 = 1_000;
 
 static G_TIM2: Mutex<RefCell<Option<CountDownTimer<stm32::TIM2>>>> = Mutex::new(RefCell::new(None));
 static G_TIM3: Mutex<RefCell<Option<CountDownTimer<stm32::TIM3>>>> = Mutex::new(RefCell::new(None));
-static G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
 static G_CNT: Mutex<RefCell<Option<u32>>> = Mutex::new(RefCell::new(None));
 static G_BUF: Mutex<RefCell<Option<ReadBuf>>> = Mutex::new(RefCell::new(None));
 static G_IDX: Mutex<RefCell<Option<usize>>> = Mutex::new(RefCell::new(None));
@@ -40,6 +34,8 @@ fn main() -> ! {
         cm::interrupt::free(|cs| {
             let mut rcc = dp.RCC.constrain();
             let mut flash = dp.FLASH.constrain();
+
+            rtt_init_print!();
 
             let clocks = rcc
                 .cfgr
@@ -58,7 +54,6 @@ fn main() -> ! {
 
             setup_interrupts(&mut cp);
 
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
             G_TIM2.borrow(cs).replace(Some(tim2));
             G_TIM3.borrow(cs).replace(Some(tim3));
             G_BUF.borrow(cs).replace(Some(buf));
@@ -103,26 +98,17 @@ fn TIM2() {
 #[interrupt]
 fn TIM3() {
     cm::interrupt::free(|cs| {
-        if let (
-            Some(ref mut tim),
-            Some(ref mut itm),
-            Some(ref mut cnt),
-            Some(ref mut idx),
-            Some(ref mut buf),
-        ) = (
+        if let (Some(ref mut tim), Some(ref mut cnt), Some(ref mut idx), Some(ref mut buf)) = (
             G_TIM3.borrow(cs).borrow_mut().deref_mut(),
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
             G_CNT.borrow(cs).borrow_mut().deref_mut(),
             G_IDX.borrow(cs).borrow_mut().deref_mut(),
             G_BUF.borrow(cs).borrow_mut().deref_mut(),
         ) {
-            let _d = &mut itm.stim[0];
-
             if *idx < buf.len() {
                 buf[*idx] = *cnt;
                 *idx = *idx + 1;
             } else {
-                iprintln!(_d, "ts: {:?}", buf);
+                rprintln!("ts: {:?}", buf);
                 *idx = 0;
             }
 

@@ -2,13 +2,12 @@
 #![no_main]
 #![no_std]
 
-use cm::iprintln;
 use cortex_m as cm;
-
 use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
-use panic_itm as _;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 
 use rtfm::app;
 use rtfm::cyccnt::Instant;
@@ -76,7 +75,6 @@ const APP: () = {
 
         // basic hardware resources
         exti: stm32::EXTI,
-        itm: stm32::ITM,
 
         // buttons and chargers
         dock: DockGpioType,
@@ -106,7 +104,9 @@ const APP: () = {
     #[init(schedule = [proc_task, sense_task, power_task, init_task])]
     fn init(mut cx: init::Context) -> init::LateResources {
         let mut rcc = cx.device.RCC.constrain();
-        let dbg = &mut cx.core.ITM.stim[0];
+
+        // setup RTT logger
+        rtt_init_print!();
 
         // setup event queues
         let queue = BinaryHeap(heapless::i::BinaryHeap::new());
@@ -120,8 +120,8 @@ const APP: () = {
             .adcclk(2.mhz())
             .freeze(&mut flash.acr);
 
-        iprintln!(dbg, "SYSCLK: {} Hz ...", clocks.sysclk().0);
-        iprintln!(dbg, "ADCCLK: {} Hz ...", clocks.adcclk().0);
+        rprintln!("SYSCLK: {} Hz ...", clocks.sysclk().0);
+        rprintln!("ADCCLK: {} Hz ...", clocks.adcclk().0);
 
         let mut gpioa = cx.device.GPIOA.split(&mut rcc.apb2);
         let mut gpiob = cx.device.GPIOB.split(&mut rcc.apb2);
@@ -419,7 +419,6 @@ const APP: () = {
 
         init::LateResources {
             queue: queue,
-            itm: cx.core.ITM,
             exti: cx.device.EXTI,
             analog: a,
             drive: m,
@@ -441,7 +440,7 @@ const APP: () = {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            cm::asm::wfi();
+            cm::asm::nop();
         }
     }
 
@@ -458,14 +457,13 @@ const APP: () = {
      * Brain: main processing task
      *
      */
-    #[task(schedule = [proc_task], resources = [itm, queue])]
+    #[task(schedule = [proc_task], resources = [queue])]
     fn proc_task(mut cx: proc_task::Context) {
-        let dbg = &mut cx.resources.itm.stim[0];
         let eq = &mut cx.resources.queue;
 
         while !eq.is_empty() {
             if let Some(e) = eq.pop() {
-                iprintln!(dbg, ">>> prio event {:?}", e);
+                rprintln!(">>> prio event {:?}", e);
             }
         }
 
@@ -479,9 +477,8 @@ const APP: () = {
      *
      */
 
-    #[task(resources = [itm, screen, accel])]
+    #[task(resources = [screen, accel])]
     fn init_task(cx: init_task::Context) {
-        let _dbg = &mut cx.resources.itm.stim[0];
         let scr = cx.resources.screen;
         let acc = cx.resources.accel;
 
@@ -521,9 +518,8 @@ const APP: () = {
      * Sense: sensor processing task to watch for obstacles using IR obstacle sensors
      *
      */
-    #[task(schedule = [sense_task], resources = [itm, analog, queue])]
+    #[task(schedule = [sense_task], resources = [analog, queue])]
     fn sense_task(mut cx: sense_task::Context) {
-        let _dbg = &mut cx.resources.itm.stim[0];
         let adc = &mut cx.resources.analog;
         let eq = &mut cx.resources.queue;
 
@@ -550,9 +546,8 @@ const APP: () = {
      * Power: task checking battery, dock station and charger plug
      *
      */
-    #[task(schedule = [power_task], resources = [itm, dock, charger, battery, analog, queue])]
+    #[task(schedule = [power_task], resources = [dock, charger, battery, analog, queue])]
     fn power_task(mut cx: power_task::Context) {
-        let _dbg = &mut cx.resources.itm.stim[0];
         let c = cx.resources.charger.is_high().unwrap_or(false);
         let b = cx.resources.battery.is_high().unwrap_or(false);
         let d = cx.resources.dock.is_high().unwrap_or(false);

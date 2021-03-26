@@ -1,29 +1,21 @@
 #![no_main]
 #![no_std]
 
-use embedded_hal::digital::v2::OutputPin;
-
-use cortex_m_rt::entry;
-
 use cm::interrupt::Mutex;
-use cm::iprintln;
+use core::cell::RefCell;
 use cortex_m as cm;
-
-use panic_itm as _;
-
+use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
 use hal::prelude::*;
 use hal::stm32;
 use hal::stm32::interrupt;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
-use core::cell::RefCell;
-use core::ops::DerefMut;
-
 type ExtIntr = stm32::EXTI;
-type DbgPort = stm32::ITM;
 
 static G_EXTI: Mutex<RefCell<Option<ExtIntr>>> = Mutex::new(RefCell::new(None));
-static G_ITM: Mutex<RefCell<Option<DbgPort>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
@@ -31,6 +23,8 @@ fn main() -> ! {
         cm::interrupt::free(|cs| {
             let mut rcc = dp.RCC.constrain();
             let mut flash = dp.FLASH.constrain();
+
+            rtt_init_print!();
 
             let _clocks = rcc
                 .cfgr
@@ -100,18 +94,11 @@ fn main() -> ! {
             //dp.EXTI.ftsr.modify(|_, w| w.tr15().set_bit());
 
             G_EXTI.borrow(cs).replace(Some(dp.EXTI));
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
         });
     }
 
     loop {
-        cm::interrupt::free(|cs| {
-            if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-                let d = &mut itm.stim[0];
-                iprintln!(d, "idle loop");
-            }
-        });
-
+        rprintln!("idle loop");
         delay(10000);
     }
 }
@@ -137,11 +124,7 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 #[interrupt]
 fn EXTI15_10() {
     cm::interrupt::free(|cs| {
-        if let (Some(ref mut itm), Some(exti)) = (
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
-            G_EXTI.borrow(cs).borrow().as_ref(),
-        ) {
-            let d = &mut itm.stim[0];
+        if let Some(exti) = G_EXTI.borrow(cs).borrow().as_ref() {
             let mut t = 0;
             let mut l = 0;
             let mut r = 0;
@@ -165,7 +148,7 @@ fn EXTI15_10() {
                 t = 1;
             }
 
-            iprintln!(d, "IR: top[{}] left[{}] front[{}] right[{}]", t, l, f, r);
+            rprintln!("IR: top[{}] left[{}] front[{}] right[{}]", t, l, f, r);
         }
     });
 }

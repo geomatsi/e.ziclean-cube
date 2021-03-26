@@ -4,11 +4,7 @@
 use cortex_m_rt::entry;
 
 use cm::interrupt::Mutex;
-use cm::iprintln;
 use cortex_m as cm;
-
-use panic_itm as _;
-
 use hal::device::{TIM2, TIM3};
 use hal::gpio::gpiob::PB2;
 use hal::gpio::gpioe::PE7;
@@ -18,6 +14,8 @@ use hal::stm32;
 use hal::stm32::interrupt;
 use hal::timer::CountDownTimer;
 use hal::timer::Timer;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal as hal;
 
 use bitbang_hal;
@@ -40,7 +38,6 @@ type GAccType =
     Kxcj9<I2cBB<PE7<Output<OpenDrain>>, PB2<Output<OpenDrain>>, CountDownTimer<TIM2>>, G8Device>;
 
 static G_EXTI: Mutex<RefCell<Option<stm32::EXTI>>> = Mutex::new(RefCell::new(None));
-static G_ITM: Mutex<RefCell<Option<stm32::ITM>>> = Mutex::new(RefCell::new(None));
 static G_TMR: Mutex<RefCell<Option<CountDownTimer<TIM3>>>> = Mutex::new(RefCell::new(None));
 static G_ACC: Mutex<RefCell<Option<GAccType>>> = Mutex::new(RefCell::new(None));
 
@@ -52,6 +49,8 @@ fn main() -> ! {
         cm::interrupt::free(|cs| {
             let mut rcc = dp.RCC.constrain();
             let mut flash = dp.FLASH.constrain();
+
+            rtt_init_print!();
 
             let clocks = rcc
                 .cfgr
@@ -116,7 +115,6 @@ fn main() -> ! {
             acc.enable_wake_up_interrupt(config).unwrap();
 
             G_EXTI.borrow(cs).replace(Some(dp.EXTI));
-            G_ITM.borrow(cs).replace(Some(cp.ITM));
             G_TMR.borrow(cs).replace(Some(delay));
             G_ACC.borrow(cs).replace(Some(acc));
         });
@@ -124,10 +122,7 @@ fn main() -> ! {
 
     loop {
         cm::interrupt::free(|cs| {
-            if let Some(ref mut itm) = G_ITM.borrow(cs).borrow_mut().deref_mut() {
-                let d = &mut itm.stim[0];
-                iprintln!(d, "idle loop");
-            }
+            rprintln!("idle loop");
 
             if let Some(ref mut delay) = G_TMR.borrow(cs).borrow_mut().deref_mut() {
                 block!(delay.wait()).ok();
@@ -152,15 +147,13 @@ fn setup_interrupts(cp: &mut cm::peripheral::Peripherals) {
 #[interrupt]
 fn EXTI9_5() {
     cm::interrupt::free(|cs| {
-        if let (Some(ref mut acc), Some(ref mut itm), Some(exti)) = (
+        if let (Some(ref mut acc), Some(exti)) = (
             G_ACC.borrow(cs).borrow_mut().deref_mut(),
-            G_ITM.borrow(cs).borrow_mut().deref_mut(),
             G_EXTI.borrow(cs).borrow().as_ref(),
         ) {
-            let d = &mut itm.stim[0];
             let info = acc.read_interrupt_info().unwrap();
 
-            iprintln!(d, "MOTION: {:?}", info);
+            rprintln!("MOTION: {:?}", info);
 
             acc.clear_interrupts().unwrap();
             exti.pr.modify(|_, w| w.pr9().set_bit());

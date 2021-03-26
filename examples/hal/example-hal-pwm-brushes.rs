@@ -1,23 +1,20 @@
 #![no_main]
 #![no_std]
 
-use cortex_m_rt::entry;
-
-use cm::iprintln;
 use cortex_m as cm;
-
-use panic_itm as _;
-
-use stm32f1xx_hal::{prelude::*, stm32};
-
+use cortex_m_rt::entry;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::delay::Delay;
 use stm32f1xx_hal::timer::Timer;
+use stm32f1xx_hal::{prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
-    let mut core = cm::Peripherals::take().unwrap();
+    let core = cm::Peripherals::take().unwrap();
     let p = stm32::Peripherals::take().unwrap();
-    let dbg = &mut core.ITM.stim[0];
+
+    rtt_init_print!();
 
     let mut flash = p.FLASH.constrain();
     let mut rcc = p.RCC.constrain();
@@ -41,7 +38,7 @@ fn main() -> ! {
 
     let max = pump.get_max_duty();
 
-    iprintln!(dbg, "pwm max duty: {}...", max);
+    rprintln!("pwm max duty: {}...", max);
 
     pump.enable();
     brushes.enable();
@@ -58,11 +55,11 @@ fn main() -> ! {
         max,
     ];
 
-    iprintln!(dbg, "lets rock...");
+    rprintln!("lets rock...");
 
     loop {
         for i in 0..duty.len() {
-            iprintln!(dbg, "duty: {}", duty[i]);
+            rprintln!("duty: {}", duty[i]);
             pump.set_duty(duty[i]);
             brushes.set_duty(duty[i]);
             delay.delay_ms(5_000_u16)
