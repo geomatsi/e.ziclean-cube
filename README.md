@@ -2,35 +2,128 @@
 
 # Summary
 Experiments with custom firmware for [E.ZICLEAN CUBE](https://www.e-zicom.com/aspirateur-robot-eziclean-cube.html) robot vacuum cleaner.
+
 # Quick start guide
-## Firmware
+## Build
+### Build firmware
 Build experimental firmware images based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
 $ cargo build --bins --release
 ```
-## Examples: stm32hal
+
+### Build stm32hal examples
 Build examples based on [stm32f1xx-hal](https://crates.io/crates/stm32f1xx-hal):
 ```bash
 $ cargo build --examples --release
 ```
-## Examples: stm32ral
+
+### Build stm32ral examples
 Build examples based on [stm32ral](https://crates.io/crates/stm32ral):
 ```bash
 $ cargo build --features ral --no-default-features --examples
 ```
-## cargo-make tools
-Start tmux debug environment with itmdump and jlink:
+
+## Flash
+### Flash using cargo-embed
+Write example firmware to flash using cargo-embed subcommand:
 ```bash
-$ cargo make debug
+$ cargo embed  --example example-hal-battery-charging flash
 ```
 
-Restore original factory firmware:
+### Flash using OpenOCD
+There are two OpenOCD configuration scripts in tools directory: for ST-Link and Segger JLink. Those scripts include several pre-defined helper functions. The following command explains how to use OpenOCD to write firmware example to flash using ST-Link:
+```bash
+$ openocd -f tools/openocd-stlink.cfg -c 'flash_img target/thumbv7m-none-eabi/release/examples/example-hal-battery-charging'
+```
+
+### Restore original e.ziclean firmware
+The following commands restores original e.ziclean firmware:
+```bash
+$ openocd -f tools/openocd-stlink.cfg -c 'factory ()'
+```
+
+## Debug
+Currently RTT is used for logging purposes. All the logging code based on semi-hosting and ITM has been replaced by RTT. It is possible to view RTT logs using both cargo-embed and OpenOCD. Using cargo-embed is easier, but OpenOCD can do both RTT view and GDB debug at the same time.
+
+### View RTT using cargo-embed
+Attach to RTT channels for the running firmware example:
+```bash
+$ cargo embed  --example example-hal-battery-charging
+```
+
+### View RTT using OpenOCD
+Attach OpenOCD to the target using ST-Link probe:
+```bash
+$ openocd -f tools/openocd-stlink.cfg -c 'attach ()'
+```
+Now attach to OpenOCD command console, configure RTT, check available RTT debug channels, and start OpenOCD RTT server for selected channel:
+```bash
+$ telnet localhost 4444
+> rtt setup 0x20000000 0x2000 "SEGGER RTT"
+> rtt start
+rtt: Searching for control block 'SEGGER RTT'
+rtt: Control block found at 0x20000000
+> rtt channels
+Channels: up=1, down=0
+Up-channels:
+0: Terminal 1024 0
+Down-channels:
+> rtt server  start 9000 0
+Listening on port 9000 for rtt connections
+accepting 'rtt' connection on tcp/9000
+```
+Finally connect to OpenOCD RTT server to view RTT log stream:
+```bash
+$ nc localhost 9000
+```
+
+### Debug using OpenOCD
+Default project runner is gdb. So OpenOCD gdb server can be used to run and debug firmware examples.
+
+Attach OpenOCD to the target using ST-Link probe:
+```bash
+$ openocd -f tools/openocd-stlink.cfg -c 'attach ()'
+```
+
+Run selected firmware example. By default gdb will be used in conjunction with OpenOCD GDB server:
+```bash
+$ cargo run  --example example-hal-battery-charging
+  ...
+Loading section .vector_table, size 0x130 lma 0x8000000
+Loading section .text, size 0x9244 lma 0x8000130
+Loading section .rodata, size 0x1710 lma 0x8009374
+Start address 0x08007f62, load size 43652
+Transfer rate: 17 KB/sec, 8730 bytes/write.
+halted: PC: 0x08007f64
+halted: PC: 0x08007f66
+510	    __pre_init();
+(gdb) cont
+Continuing.
+   ...
+
+```
+
+Note that now OpenOCD command console can be opened and RTT logging can be configured.
+
+## Misc tools
+### Helpers based on cargo-make
+Creation of several basic work scenarios have been automated using cargo-make subcommand:
+
+* Start tmux debug environment with jlink:
+```bash
+$ cargo make debug-stlink
+```
+* Start tmux debug environment with jlink:
+```bash
+$ cargo make debug-jlink
+```
+* Restore original factory firmware:
 ```bash
 $ cargo make factory
 ```
 
-## Hardware
-### Board
+# Hardware
+## Board
 ![alt text](pics/board-p1.jpg)
 
 ### Components
@@ -277,8 +370,8 @@ Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depe
 ![alt_text](pics/ir-rc-dock-codes.png)
 
 
-## Firmware
-### Status of firmware building blocks
+# Firmware
+## Status of firmware building blocks
 - [x] [5 front infrared obstacle sensors](examples/hal/example-hal-adc-sensors.rs)
 - [x] [3 bottom infrared floor sensors](examples/hal/example-hal-adc-sensors.rs)
 - [x] [infrared remote control](examples/hal/example-hal-ir-rc-test4.rs)
@@ -301,5 +394,5 @@ Dock uses the same protocol similar to 1-wire  as IR RC device. Beacon code depe
 - [ ] wheel motors current control circuit
 - [ ] battery charging circuit
 
-### Firmware diagram
+## Firmware diagram
 TODO
