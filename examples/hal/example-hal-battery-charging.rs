@@ -8,7 +8,7 @@ use panic_rtt_target as _;
 use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::timer;
 use stm32f1xx_hal::timer::Tim2PartialRemap2;
-use stm32f1xx_hal::{adc::Adc, prelude::*, stm32};
+use stm32f1xx_hal::{adc::Adc, adc::SampleTime, prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
@@ -42,57 +42,67 @@ fn main() -> ! {
 
     // ADC1 setup
     let mut adc = Adc::adc1(p.ADC1, &mut rcc.apb2, clocks);
+    adc.set_sample_time(SampleTime::T_71);
+    adc.read_vref();
+    adc.read_vref();
+    let v_ref: u32 = adc.read_vref().into();
 
     // TIM2 PWM setup
     let mut charger = timer::Timer::tim2(p.TIM2, &clocks, &mut rcc.apb1)
-        .pwm::<Tim2PartialRemap2, _, _, _>(pin, &mut afio.mapr, 10.khz());
-
+        .pwm::<Tim2PartialRemap2, _, _, _>(pin, &mut afio.mapr, 30.khz());
     let pwm_max_duty = charger.get_max_duty();
-
     charger.disable();
 
-    // make sure that battery is connected
-
-    while !batt.is_high().unwrap() {
-        rprintln!("Battery not connected...");
-        delay(100000);
-    }
-
-    rprintln!("Battery connected !");
-
-    // make sure charger is connected
-
     loop {
+        // make sure charger is connected
+        while !batt.is_high().unwrap() {
+            rprintln!("Battery not connected...");
+            delay(1000000);
+        }
+
+        rprintln!("Battery connected !");
+
+        // make sure that battery is connected
         while !plug.is_high().unwrap() && !base.is_high().unwrap() {
             rprintln!("Charger not connected...");
-            delay(100000);
+            delay(1000000);
         }
 
         rprintln!("Charger connected !");
 
-        charger.set_duty(pwm_max_duty / 2 as u16);
+        charger.set_duty(pwm_max_duty * 50 / 100 as u16);
         charger.enable();
 
         loop {
             // Battery voltage
-            let v_ref: u32 = adc.read_vref().into();
             let v_ch1: u32 = adc.read(&mut ch1).unwrap();
             // As per PCB investigation, battery voltage divider:
             // v_ch1 = v_bat * 20k / (200k + 20k) */
             let v_bat: u32 = 11 * v_ch1 * 1200 / v_ref;
 
             // Voltage drop on shunt resistor R75
-
             let v_ch2: u32 = adc.read(&mut ch2).unwrap();
             // As per PCB investigation, OpAmp-1 (voltage subtractor) + OpAmp-2 (voltage follower):
             // v_ch2 = v_shunt * (200k / 10k)
             let v_shunt: u32 = v_ch2 * 1200 * 10 / v_ref / 200;
 
-            rprintln!("V_bat: {} mV; V_shunt {} mV", v_bat, v_shunt);
-            delay(100000);
+            rprintln!(
+                "V_bat: {} mV; V_shunt {} mV; V_ref: {}",
+                v_bat,
+                v_shunt,
+                v_ref
+            );
+
+            delay(1000000);
 
             if !plug.is_high().unwrap() && !base.is_high().unwrap() {
                 rprintln!("Charger disconnected: stop charging!");
+                charger.disable();
+                break;
+            }
+
+            if !batt.is_high().unwrap() {
+                rprintln!("Battery disconnected: stop charging...");
                 charger.disable();
                 break;
             }
